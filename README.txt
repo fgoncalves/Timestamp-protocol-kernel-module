@@ -19,6 +19,30 @@ Sites to discover what chipset is in what wireless card
 * http://wireless.kernel.org/en/users/Drivers/
 * http://linux-wless.passys.nl/
 
+Establishing AD-HOC Communication
+=================================
+
+PC1 - LGs laptops from INESC
+PC2 - TS-7550s
+
+Run in PC1
+##########
+* ifconfig eth1 down
+* ifconfig eth1 up
+* iwconfig eth1 essid teste mode Ad-Hoc channel 1 ap 02:0c:f1:b5:8f:01 key off
+* ifconfig eth1 192.168.0.1
+
+Run in PC2
+#########
+* Edit the file /etc/modprobe.d/blacklist and add rt73usb
+* Copy the file "rt73_ts7500.ko" to "/lib/modules/2.6.24.4/kernel/drivers/net/wireless/rt2x00". You may find the rt_ts7500.ko file in this zip file: "ftp://ftp.embeddedarm.com/ts-arm-sbc/ts-7500-linux/binaries/wifi-g-usb-2_rt2501usb-binaries.tar.gz"
+* Run depmod -a
+* Restart (don't really now if it is necessary)
+* ifconfig rausb0 up
+* iwconfig rausb0 essid teste mode Ad-Hoc channel 1 ap 02:0C:F1:B5:CC:5D key off
+* ifconfig rausb0 192.168.0.100
+
+
 Placa Wireless IOGEAR
 =====================
 
