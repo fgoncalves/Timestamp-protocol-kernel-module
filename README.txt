@@ -16,5 +16,5 @@ Placa Wireless IOGEAR
 Site of the module:
 http://wiki.debian.org/zd1211rw
 
-Site to compile the module:
+Site to compile the module + arguments of the iwconfig:
 https://docs.google.com/viewer?url=http://www.linuxowl.com/ffs/DocsSoftware/SWMULZ-5400-Linux-UserGuide.pdf
