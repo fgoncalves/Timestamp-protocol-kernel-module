@@ -40,7 +40,19 @@ Run in PC2
 * Restart (don't really now if it is necessary)
 * ifconfig rausb0 up
 * iwconfig rausb0 essid teste mode Ad-Hoc channel 1 ap 02:0C:F1:B5:CC:5D key off
-* ifconfig rausb0 192.168.0.100
+* ifconfig rausb0 192.168.0.25
+
+Autostart interfaces in the TS7550
+##################################
+I added the following lines to /etc/network/interfaces:
+
+auto rausb0
+iface rausb0 inet static
+    address 192.168.0.25
+    netmask 255.255.255.0
+    pre-up /root/adhoc.sh 
+
+Note that the /root/adhoc.sh is a script with the precious instructions (don't forget to markit executable)
 
 
 Placa Wireless IOGEAR
