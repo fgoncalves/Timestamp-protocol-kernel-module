@@ -73,3 +73,12 @@ Automatically boot into Debian linux
 ====================================
 In linux busy-box in the root directory issue:
 # ln -sf linuxrc-sdroot linuxrc; save
+
+
+Translation table
+=================
+card |        ip
+-------------------------------
+  1  | 192.168.0.27
+  2  | 192.168.0.26
+  3  | 192.168.0.25
