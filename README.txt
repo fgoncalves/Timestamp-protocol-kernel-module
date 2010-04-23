@@ -52,7 +52,7 @@ iface rausb0 inet static
     netmask 255.255.255.0
     pre-up /root/adhoc.sh 
 
-Note that the /root/adhoc.sh is a script with the precious instructions (don't forget to markit executable)
+Note that the /root/adhoc.sh is a script with the previous instructions (don't forget to markit executable)
 
 
 Placa Wireless IOGEAR
@@ -74,6 +74,9 @@ Automatically boot into Debian linux
 In linux busy-box in the root directory issue:
 # ln -sf linuxrc-sdroot linuxrc; save
 
+=======
+# In linux busy-box in the root directory issue:
+ln -sf linuxrc-sdroot linuxrc; save
 
 Translation table
 =================
