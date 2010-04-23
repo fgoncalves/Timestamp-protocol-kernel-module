@@ -1,0 +1,17 @@
+auto rausb0
+    iface rausb0 inet static
+    address 192.168.0.MUDAR_IP
+    netmask 255.255.255.0
+    pre-up /root/adhoc.sh rausb0 MUDAR_IP
+
+auto rausb1
+    iface rausb1 inet static
+    address 192.168.0.MUDAR_IP
+    netmask 255.255.255.0
+    pre-up /root/adhoc.sh rausb1 MUDAR_IP
+
+auto rausb2
+    iface rausb2 inet static
+    address 192.168.0.MUDAR_IP
+    netmask 255.255.255.0
+    pre-up /root/adhoc.sh rausb2 MUDAR_IP
