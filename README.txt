@@ -54,7 +54,6 @@ iface rausb0 inet static
 
 Note that the /root/adhoc.sh is a script with the previous instructions (don't forget to markit executable)
 
-
 Placa Wireless IOGEAR
 =====================
 
