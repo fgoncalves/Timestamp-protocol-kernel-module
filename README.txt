@@ -2,13 +2,18 @@ README
 ------
 Put here the stuff to work with the RT7550
 
-FIRST STEPS
-===========
+FIRST STEPS - Connect to the RT7750 with serial cable
+=====================================================
 
 * Install minicom
-* TODO
+* Run sudo minicom -s
+* Set in Serial Port Setup
+    ** Serial Device: /dev/ttyUSB0 (or /dev/ttyUSB1)
+    ** Bps: 115200 8N1
+    ** Hardware Flow Control: No
 
-Sites com documentação
+
+Documentation URLs
 ======================
 In here put the cites with documentation for the little arms:
 
@@ -54,8 +59,8 @@ iface rausbwifi inet static
 
 Note that the /root/adhoc.sh is a script with the previous instructions (don't forget to markit executable)
 
-Placa Wireless IOGEAR
-=====================
+Placa Wireless IOGEAR (Can't make it work in adhoc)
+====================================================
 
 *Modulos:*
 zd1211 -> Old module developed by the company (available in sourceforge)
@@ -71,10 +76,6 @@ https://docs.google.com/viewer?url=http://www.linuxowl.com/ffs/DocsSoftware/SWMU
 Automatically boot into Debian linux
 ====================================
 In linux busy-box in the root directory issue:
-# ln -sf linuxrc-sdroot linuxrc; save
-
-=======
-# In linux busy-box in the root directory issue:
 ln -sf linuxrc-sdroot linuxrc; save
 
 Translation table
