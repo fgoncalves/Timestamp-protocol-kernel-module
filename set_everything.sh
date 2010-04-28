@@ -9,6 +9,5 @@ NUMBER=`echo $HOSTNAME | tr -d arm `
 #cp blacklist /etc/modprobe.d/blacklist
 
 #cp the network interfaces config file
-TO_EXECUTE="sed \"s/#CHANGE_NUMBER#/$NUMBER/g\" interfaces_global > interfaces"
-`$TO_EXECUTE`
+sed s/#CHANGE_NUMBER#/$NUMBER/g interfaces_global > interfaces
 cp interfaces /etc/network/interfaces
