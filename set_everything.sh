@@ -11,3 +11,7 @@ cp blacklist /etc/modprobe.d/blacklist
 #cp the network interfaces config file
 sed s/#CHANGE_NUMBER#/$NUMBER/g interfaces_global > interfaces
 cp interfaces /etc/network/interfaces
+
+#Fix udev
+#sed "/rt73/ d; /rausb/ d" /etc/udev/rules.d/70-persistent-net.rules > /etc/udev/rules.d/70-persistent-net.rules
+cp 01-our-rewrite.rules /etc/udev/rules.d/
