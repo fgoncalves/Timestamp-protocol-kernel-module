@@ -43,19 +43,19 @@ Run in PC2
 * Copy the file "rt73_ts7500.ko" to "/lib/modules/2.6.24.4/kernel/drivers/net/wireless/rt2x00". You may find the rt_ts7500.ko file in this zip file: "ftp://ftp.embeddedarm.com/ts-arm-sbc/ts-7500-linux/binaries/wifi-g-usb-2_rt2501usb-binaries.tar.gz"
 * Run depmod -a
 * Restart (don't really now if it is necessary)
-* ifconfig rausb0 up
-* iwconfig rausb0 essid teste mode Ad-Hoc channel 1 ap 02:0C:F1:B5:CC:5D key off
-* ifconfig rausb0 192.168.0.25
+* ifconfig rausbwifi up
+* iwconfig rausbwifi essid teste mode Ad-Hoc channel 1 ap 02:0C:F1:B5:CC:5D key off
+* ifconfig rausbwifi 192.168.0.25
 
 Autostart interfaces in the TS7550
 ##################################
 I added the following lines to /etc/network/interfaces:
 
-auto rausb0
-iface rausb0 inet static
+auto rausbwifi
+iface rausbwifi inet static
     address 192.168.0.25
     netmask 255.255.255.0
-    pre-up /root/adhoc.sh 
+    pre-up /root/adhoc.sh
 
 Note that the /root/adhoc.sh is a script with the previous instructions (don't forget to markit executable)
 

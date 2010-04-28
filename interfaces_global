@@ -17,27 +17,8 @@ iface eth0 inet static
 #auto eth1
 #iface eth1 inet dhcp
 
-auto rausb0
-iface rausb0 inet static
+auto rausbwifi
+iface rausbwifi inet static
         address 192.168.0.#CHANGE_NUMBER#
         netmask 255.255.255.0
-        pre-up /root/adhoc.sh rausb0
-
-auto rausb1
-iface rausb1 inet static
-        address 192.168.0.#CHANGE_NUMBER#
-        netmask 255.255.255.0
-        pre-up /root/adhoc.sh rausb1
-
-auto rausb2
-iface rausb2 inet static
-        address 192.168.0.#CHANGE_NUMBER#
-        netmask 255.255.255.0
-        pre-up /root/adhoc.sh rausb2
-
-auto rausb3
-iface rausb3 inet static
-        address 192.168.0.#CHANGE_NUMBER#
-        netmask 255.255.255.0
-        pre-up /root/adhoc.sh rausb3
-
+        pre-up /root/adhoc.sh rausbwifi 192.168.1.#CHANGE_NUMBER#
