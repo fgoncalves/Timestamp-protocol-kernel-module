@@ -11,8 +11,8 @@ iface eth0 inet static
         address 192.168.1.#CHANGE_NUMBER#
         network 192.168.1.0
         netmask 255.255.255.0
-        broadcast 192.168.0.255
-        gateway 192.168.0.1
+        broadcast 192.168.1.255
+        gateway 192.168.1.102
 
 #auto eth1
 #iface eth1 inet dhcp
