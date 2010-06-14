@@ -54,14 +54,14 @@ static sentinel* new_sentinel(){
   return s;
 }
 
-static unsigned long hash_index(const hash_node node){
+static unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned int packID){
   unsigned long h = 0, g;
   
   unsigned char name[6 + sizeof(unsigned int)];
 
-  memcpy(name, node.ip, 4);
-  memcpy(name + 4, node.port, 2);
-  memcpu(name + 6, node.packet_id, sizeof(unsigned int));
+  memcpy(name, ip, 4);
+  memcpy(name + 4, port, 2);
+  memcpu(name + 6, packID, sizeof(unsigned int));
 
   while (*name){
     h = ( h << 4 ) + (*name)++;    
@@ -75,7 +75,7 @@ static unsigned long hash_index(const hash_node node){
 void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, long inTime){
   hash_node* node = new_node(ip, port, packID, inTime);
 
-  unsigned long index = hash_index(*node);
+  unsigned long index = hash_index(node->ip, node->port, node->packet_id);
 
   if((*t)[index])
     (*t)[index] = new_sentinel();
@@ -92,9 +92,54 @@ void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, 
   return;
 }
 
+hash_node* hash_lookup(table t, unsigned char* ip, unsigned char* port, unsigned int packID){
+  hash_node* iterator;
+  unsigned long index = hash_index(ip, port,packID);
 
+  if(t[index] == null)
+    return null;
 
-void dump_table(table t){
+  for(iterator = t[index]->first; iterator != null; iterator = iterator->next)
+    if(memcmp(iterator->ip, ip, 4) == 0 && memcmp(iterator->port, port, 2) == 0 && memcmp(& (iterator->packet_id), & packID, sizeof(unsigned int)) == 0)
+      return iterator;
+
+  return null;
+}
+
+void delete(table* t, hash_node* node){
+  unsigned long index = hash_index(node->ip, node->port, node->packet_id);
+  
+  //Only one element in hash row
+  if(node->next == null && node->before == null){
+    dealloc(node);
+    dealloc((*t)[index]);
+    return;
+  }
+
+  //first element in hash row
+  if(node->before == null){
+    (*t)[index]->first = node->next;
+    node->next->before = null;
+    dealloc(node);
+    return;
+  }
+
+  //last element in hash row
+  if(node->next == null){
+    (*t)[index]->last = node->before;
+    node->before->next = null;
+    dealloc(node);
+    return;
+  }
+
+  //element in the middle of the row
+  node->before->next = node->next;
+  node->next->before = node->before;
+  dealloc(node);
+  return;
+}
+
+void dump_table(const table t){
   int i;
   hash_node* iterator;
   for(i = 0; i < hash_size; i++)
