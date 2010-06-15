@@ -61,11 +61,11 @@ static unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned
 
   memcpy(name, ip, 4);
   memcpy(name + 4, port, 2);
-  memcpu(name + 6, packID, sizeof(unsigned int));
+  memcpy(name + 6, & packID, sizeof(unsigned int));
 
   while (*name){
     h = ( h << 4 ) + (*name)++;    
-    if (g = h & 0xF0000000L) {h ^= g >> 24;}    
+    if (g = h & 0xF0000000L) {h ^= g >> 17;}    
     h &= ~g;
   }
   
@@ -77,7 +77,7 @@ void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, 
 
   unsigned long index = hash_index(node->ip, node->port, node->packet_id);
 
-  if((*t)[index])
+  if((*t)[index] == null)
     (*t)[index] = new_sentinel();
 
   if((*t)[index]->first == null){
@@ -85,7 +85,6 @@ void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, 
     (*t)[index]->last = node;
     return;
   }
-  
   node->before = (*t)[index]->last;
   (*t)[index]->last->next = node;
   (*t)[index]->last = node;
@@ -142,15 +141,33 @@ void delete(table* t, hash_node* node){
 void dump_table(const table t){
   int i;
   hash_node* iterator;
-  for(i = 0; i < hash_size; i++)
+  for(i = 0; i < hash_size; i++){
     if(t[i] != null){
-      print("list in normal order\n");
+      print("[%d] ********************** Hash row ******************************\n", i);
       for(iterator = t[i]->first; iterator != null; iterator = iterator->next){
-	print("ip: %s port: %s packetID: %ud inTime: %ld\n", iterator->ip, iterator->port, iterator->packet_id, iterator->in_time);
+	print("[%d] ip: %s port: %s packetID: %u inTime: %ld\n", i, iterator->ip, iterator->port, iterator->packet_id, iterator->in_time);
       }
-      print("list in reverse\n");
-      for(iterator = t[i]->last; iterator != null; iterator = iterator->before){
-	print("ip: %s port: %s packetID: %ud inTime: %ld\n", iterator->ip, iterator->port, iterator->packet_id, iterator->in_time);
-      }
+      print("[%d] ********************** Hash row end **************************\n", i);
     }
+  }
+}
+
+
+int main(){
+  unsigned char ip[4] = {0}, port[2] ={0};
+  unsigned int id = 0;
+  unsigned long time = 0;
+  
+  table t = new_table();
+  while(1){
+    scanf("%s %s %u %ld",ip, port, &id, &time);
+    if(strcmp(ip, "-1") == 0)
+      break;
+    put(&t,ip,port,id,time);
+    memset(ip,0,4);
+    memset(port,0,2);
+  }
+
+  dump_table(t);
+  return 0;
 }
