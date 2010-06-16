@@ -51,6 +51,8 @@ static hash_node* new_node(unsigned char *ip, unsigned char* port, unsigned int 
 
 static sentinel* new_sentinel(){
   sentinel* s = alloc(1,sentinel);
+  s->first = null;
+  s->last = null;
   return s;
 }
 
@@ -138,6 +140,19 @@ void delete(table* t, hash_node* node){
   return;
 }
 
+void explode_table(table* t){
+  int i;
+  hash_node* iterator, *aux;
+  for(i = 0; i < hash_size; i++)
+    if((*t)[i] != null)
+      for(iterator = (*t)[i]->first; iterator != null;){
+	aux = iterator;
+	iterator = iterator->next;
+	delete(t,aux);
+      }
+  dealloc(*t);
+}
+
 void dump_table(const table t){
   int i;
   hash_node* iterator;
@@ -168,6 +183,7 @@ int main(){
     memset(port,0,2);
   }
 
-  dump_table(t);
+  //dump_table(t);
+  explode_table(&t);
   return 0;
 }
