@@ -1,14 +1,14 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/vmalloc.h>
 
 #define alloc(TSIZE,TYPE)\
-  (TYPE*) malloc(TSIZE * sizeof(TYPE))
+  (TYPE*) vmalloc(TSIZE * sizeof(TYPE))
 
 #define dealloc(PTR)\
-  free(PTR)
+  vfree(PTR)
 
-#define print printf
+#define print printk
 
 #define null NULL
 
@@ -30,7 +30,7 @@ typedef struct t_sentinel{
 
 typedef sentinel** table;
 
-table new_table(){
+table new_table(void){
   int i;
   table t = alloc(hash_size,sentinel*);
   for(i = 0; i < hash_size; i++)
@@ -49,7 +49,7 @@ static hash_node* new_node(unsigned char *ip, unsigned char* port, unsigned int 
   return new;
 }
 
-static sentinel* new_sentinel(){
+static sentinel* new_sentinel(void){
   sentinel* s = alloc(1,sentinel);
   s->first = null;
   s->last = null;
@@ -67,7 +67,7 @@ static unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned
 
   while (*name){
     h = ( h << 4 ) + (*name)++;    
-    if (g = h & 0xF0000000L) {h ^= g >> 17;}    
+    if ((g = h & 0xF0000000L)) {h ^= g >> 17;}    
     h &= ~g;
   }
   
@@ -167,23 +167,23 @@ void dump_table(const table t){
   }
 }
 
+table t;
 
-int main(){
-  unsigned char ip[4] = {0}, port[2] ={0};
-  unsigned int id = 0;
-  unsigned long time = 0;
+int init_module(){
+  print("starting module timestamping");
+  t = new_table();
+  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
+  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
+  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
+  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
+  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
+  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
   
-  table t = new_table();
-  while(1){
-    scanf("%s %s %u %ld",ip, port, &id, &time);
-    if(strcmp(ip, "-1") == 0)
-      break;
-    put(&t,ip,port,id,time);
-    memset(ip,0,4);
-    memset(port,0,2);
-  }
-
-  //dump_table(t);
-  explode_table(&t);
+  dump_table(t);
   return 0;
+}
+
+void cleanup_module(){
+  explode_table(&t);
+  print("Hash table freed. Shuting down timestamp module.");
 }
