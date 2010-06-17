@@ -33,13 +33,22 @@ typedef sentinel** table;
 table new_table(void){
   int i;
   table t = alloc(hash_size,sentinel*);
+  if(t == null){
+    print("[new_table] Fatal error in vmalloc.\n");
+    return null;
+  }
+
   for(i = 0; i < hash_size; i++)
     t[i] = null;
   return t;
 }
 
-static hash_node* new_node(unsigned char *ip, unsigned char* port, unsigned int packID, long inTime){
+hash_node* new_node(unsigned char *ip, unsigned char* port, unsigned int packID, long inTime){
   hash_node* new = alloc(1,hash_node);
+  if(new == null){
+    print("[new_node] Fatal error in vmalloc.\n");
+    return null;
+  }
   memcpy(new->ip, ip, 4);
   memcpy(new->port, port, 2);
   memcpy(& (new->packet_id), & packID, sizeof(unsigned int));
@@ -49,14 +58,18 @@ static hash_node* new_node(unsigned char *ip, unsigned char* port, unsigned int 
   return new;
 }
 
-static sentinel* new_sentinel(void){
+sentinel* new_sentinel(void){
   sentinel* s = alloc(1,sentinel);
+  if(s == null){
+    print("[new_sentinel] Fatal error in vmalloc.\n");
+    return null;
+  }
   s->first = null;
   s->last = null;
   return s;
 }
 
-static unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned int packID){
+unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned int packID){
   unsigned long h = 0, g;
   
   unsigned char name[6 + sizeof(unsigned int)];
@@ -76,11 +89,20 @@ static unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned
 
 void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, long inTime){
   hash_node* node = new_node(ip, port, packID, inTime);
+  unsigned long index;
 
-  unsigned long index = hash_index(node->ip, node->port, node->packet_id);
+  if(node == null){
+    return;
+  }
 
-  if((*t)[index] == null)
+  index = hash_index(node->ip, node->port, node->packet_id);
+
+  if((*t)[index] == null){
     (*t)[index] = new_sentinel();
+    //Error in vmalloc
+    if((*t)[index] == null)
+      return;
+  }
 
   if((*t)[index]->first == null){
     (*t)[index]->first = node;
@@ -172,6 +194,9 @@ table t;
 int init_module(){
   print("starting module timestamping");
   t = new_table();
+  //Error in vmalloc
+  if(t == null)
+    return -1;
   put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
   put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
   put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
@@ -184,6 +209,7 @@ int init_module(){
 }
 
 void cleanup_module(){
-  explode_table(&t);
+  if(t != null)
+    explode_table(&t);
   print("Hash table freed. Shuting down timestamp module.");
 }
