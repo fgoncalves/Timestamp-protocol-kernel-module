@@ -1,6 +1,12 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/vmalloc.h>
+#include <linux/ip.h> 
+#include <linux/netdevice.h> 
+#include <linux/netfilter.h> 
+#include <linux/netfilter_ipv4.h> 
+#include <linux/skbuff.h> 
+#include <linux/udp.h>
 
 #define alloc(TSIZE,TYPE)\
   (TYPE*) vmalloc(TSIZE * sizeof(TYPE))
@@ -191,25 +197,60 @@ void dump_table(const table t){
 
 table t;
 
+static struct nf_hook_ops nf_ip_pre_routing;
+static struct nf_hook_ops nf_ip_post_routing;
+static struct nf_hook_ops nf_ip_local_out;
+
+unsigned char* service_port = "\xE1\xF3";
+
+unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
+  print("nf_ip_pre_routing_hook\n");
+  return NF_ACCEPT;
+}
+
+unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
+  print("nf_ip_post_routing_hook\n");
+  return NF_ACCEPT;
+}
+
+unsigned int nf_ip_local_out_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
+  print("nf_ip_local_out_hook\n");
+  return NF_ACCEPT;
+}
+
 int init_module(){
   print("starting module timestamping");
   t = new_table();
   //Error in vmalloc
   if(t == null)
     return -1;
-  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
-  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
-  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
-  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
-  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
-  put(&t,"\x55\x55\x55\x55","\x22\x22",1,1234);
-  
-  dump_table(t);
+
+  nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
+  nf_ip_pre_routing.pf = PF_INET;                              
+  nf_ip_pre_routing.hooknum = NF_INET_PRE_ROUTING;
+  nf_ip_pre_routing.priority = NF_IP_PRI_FIRST;
+  nf_register_hook(& nf_ip_pre_routing);
+
+  nf_ip_post_routing.hook = nf_ip_post_routing_hook;
+  nf_ip_post_routing.pf = PF_INET;
+  nf_ip_post_routing.hooknum = NF_INET_POST_ROUTING;
+  nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
+  nf_register_hook(& nf_ip_post_routing);
+
+  nf_ip_local_out.hook = nf_ip_local_out_hook;
+  nf_ip_local_out.pf = PF_INET;
+  nf_ip_local_out.hooknum = NF_INET_LOCAL_OUT;
+  nf_ip_local_out.priority = NF_IP_PRI_FIRST;
+  nf_register_hook(& nf_ip_local_out);
+
   return 0;
 }
 
 void cleanup_module(){
   if(t != null)
     explode_table(&t);
+  nf_unregister_hook(&nf_ip_pre_routing);
+  nf_unregister_hook(&nf_ip_post_routing);
+  nf_unregister_hook(&nf_ip_local_out);
   print("Hash table freed. Shuting down timestamp module.");
 }
