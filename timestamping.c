@@ -214,7 +214,30 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 }
 
 unsigned int nf_ip_local_out_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
-  print("nf_ip_local_out_hook\n");
+  struct iphdr* ip_header;
+  struct udphdr* udp_header;
+
+  if(!skb){ 
+    return NF_ACCEPT; 
+  } 
+  if(!(skb->network_header) || !(skb->transport_header)){ 
+    return NF_ACCEPT; 
+  }
+  
+  ip_header = ip_hdr(skb);
+  if(ip_header->protocol != 17){ //UDP
+    return NF_ACCEPT;
+  }
+
+  //  udp_header = udp_hdr(skb);
+  udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
+
+  print("SENDING %hu == %hu\n", udp_header->source, *(unsigned short*) service_port);
+  if((udp_header->source) == *(unsigned short*) service_port){ 
+    print("nf_ip_local_out_hook\n");
+    return NF_ACCEPT;
+  }
+  
   return NF_ACCEPT;
 }
 
@@ -252,5 +275,5 @@ void cleanup_module(){
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_out);
-  print("Hash table freed. Shuting down timestamp module.");
+  print("Hash table freed. Shuting down timestamp module.\n");
 }
