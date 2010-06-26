@@ -7,6 +7,7 @@
 #include <linux/netfilter_ipv4.h> 
 #include <linux/skbuff.h> 
 #include <linux/udp.h>
+#include <linux/time.h>
 
 #define alloc(TSIZE,TYPE)\
   (TYPE*) vmalloc(TSIZE * sizeof(TYPE))
@@ -19,6 +20,8 @@
 #define null NULL
 
 #define hash_size 311
+
+#define __udp_proto_id__ 17
 
 typedef struct t_node{
   unsigned char ip[4]; //ip in network byte order
@@ -195,25 +198,19 @@ void dump_table(const table t){
   }
 }
 
-table t;
+table __table;
 
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
-static struct nf_hook_ops nf_ip_local_out;
 
 unsigned char* service_port = "\xE1\xF3";
 
+s64 get_kernel_current_time(void){
+  struct timespec t = CURRENT_TIME;
+  return timespec_to_ns(&t);
+}
+
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
-  print("nf_ip_pre_routing_hook\n");
-  return NF_ACCEPT;
-}
-
-unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
-  print("nf_ip_post_routing_hook\n");
-  return NF_ACCEPT;
-}
-
-unsigned int nf_ip_local_out_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
 
@@ -225,16 +222,54 @@ unsigned int nf_ip_local_out_hook(unsigned int hooknum, struct sk_buff *skb, con
   }
   
   ip_header = ip_hdr(skb);
-  if(ip_header->protocol != 17){ //UDP
+  if(ip_header->protocol != __udp_proto_id__){ 
     return NF_ACCEPT;
   }
 
-  //  udp_header = udp_hdr(skb);
+  //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
-  print("SENDING %hu == %hu\n", udp_header->source, *(unsigned short*) service_port);
   if((udp_header->source) == *(unsigned short*) service_port){ 
-    print("nf_ip_local_out_hook\n");
+    //TODO:
+    //  Timestamp packet!
+    //  Create a node in the hash with the packet data and the timestamp obtained above.
+    return NF_ACCEPT;
+  }
+  
+  return NF_ACCEPT;
+}
+
+unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
+  struct iphdr* ip_header;
+  struct udphdr* udp_header;
+
+  if(!skb){ 
+    return NF_ACCEPT; 
+  } 
+  if(!(skb->network_header) || !(skb->transport_header)){ 
+    return NF_ACCEPT; 
+  }
+  
+  ip_header = ip_hdr(skb);
+  if(ip_header->protocol != __udp_proto_id__){ 
+    return NF_ACCEPT;
+  }
+
+  //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
+  udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
+
+  if((udp_header->source) == *(unsigned short*) service_port){ 
+    //TODO:
+    //  Check if packet is in hash.
+    //  if so then
+    //    calculate time spent in node.
+    //    alter value in first 8 bytes of packet
+    //    recalculate udp checksum
+    //  else
+    //    packet was created in this node.
+    //    use value stored in packet to calculate time spent in node.
+    //    alter value
+    //    recalculate checksum
     return NF_ACCEPT;
   }
   
@@ -242,10 +277,10 @@ unsigned int nf_ip_local_out_hook(unsigned int hooknum, struct sk_buff *skb, con
 }
 
 int init_module(){
-  print("starting module timestamping");
-  t = new_table();
+  print("Packets are now being timestamped.");
+  __table = new_table();
   //Error in vmalloc
-  if(t == null)
+  if(__table == null)
     return -1;
 
   nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
@@ -260,20 +295,13 @@ int init_module(){
   nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_post_routing);
 
-  nf_ip_local_out.hook = nf_ip_local_out_hook;
-  nf_ip_local_out.pf = PF_INET;
-  nf_ip_local_out.hooknum = NF_INET_LOCAL_OUT;
-  nf_ip_local_out.priority = NF_IP_PRI_FIRST;
-  nf_register_hook(& nf_ip_local_out);
-
   return 0;
 }
 
 void cleanup_module(){
-  if(t != null)
-    explode_table(&t);
+  if(__table != null)
+    explode_table(&__table);
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
-  nf_unregister_hook(&nf_ip_local_out);
-  print("Hash table freed. Shuting down timestamp module.\n");
+  print("Packets are no longer being timestamped.\n");
 }
