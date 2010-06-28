@@ -24,10 +24,10 @@
 #define __udp_proto_id__ 17
 
 typedef struct t_node{
-  unsigned char ip[4]; //ip in network byte order
-  unsigned char port[2];
+  __be32 ip; //ip in network byte order
+  __be16 port;
   unsigned int packet_id;
-  long in_time; //kernel time at which packet entered this node
+  s64 in_time; //kernel time at which packet entered this node
   struct t_node* before;
   struct t_node* next;
 } hash_node;
@@ -52,16 +52,16 @@ table new_table(void){
   return t;
 }
 
-hash_node* new_node(unsigned char *ip, unsigned char* port, unsigned int packID, long inTime){
+hash_node* new_node(__be32 ip, __be16 port, unsigned int packID, s64 inTime){
   hash_node* new = alloc(1,hash_node);
   if(new == null){
     print("[new_node] Fatal error in vmalloc.\n");
     return null;
   }
-  memcpy(new->ip, ip, 4);
-  memcpy(new->port, port, 2);
+  memcpy(& (new->ip), &ip, sizeof(__be32));
+  memcpy(& (new->port), &port, sizeof(__be16));
   memcpy(& (new->packet_id), & packID, sizeof(unsigned int));
-  memcpy(& (new->in_time), & inTime, sizeof(long));
+  memcpy(& (new->in_time), & inTime, sizeof(s64));
   new->before = null;
   new->next = null;
   return new;
@@ -78,14 +78,14 @@ sentinel* new_sentinel(void){
   return s;
 }
 
-unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned int packID){
+unsigned long hash_index(__be32 ip, __be16 port, unsigned int packID){
   unsigned long h = 0, g;
   
-  unsigned char name[6 + sizeof(unsigned int)];
+  unsigned char name[sizeof(__be32) + sizeof(__be16) + sizeof(unsigned int)];
 
-  memcpy(name, ip, 4);
-  memcpy(name + 4, port, 2);
-  memcpy(name + 6, & packID, sizeof(unsigned int));
+  memcpy(name, &ip, sizeof(__be32));
+  memcpy(name + 4, &port, sizeof(__be16));
+  memcpy(name + 6, &packID, sizeof(unsigned int));
 
   while (*name){
     h = ( h << 4 ) + (*name)++;    
@@ -96,7 +96,7 @@ unsigned long hash_index(unsigned char* ip, unsigned char* port, unsigned int pa
   return h % hash_size;
 }
 
-void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, long inTime){
+void put(table* t, __be32 ip, __be16 port, unsigned int packID, s64 inTime){
   hash_node* node = new_node(ip, port, packID, inTime);
   unsigned long index;
 
@@ -124,7 +124,7 @@ void put(table* t, unsigned char* ip, unsigned char* port, unsigned int packID, 
   return;
 }
 
-hash_node* hash_lookup(table t, unsigned char* ip, unsigned char* port, unsigned int packID){
+hash_node* hash_lookup(table t, __be32 ip, __be16 port, unsigned int packID){
   hash_node* iterator;
   unsigned long index = hash_index(ip, port,packID);
 
@@ -132,7 +132,9 @@ hash_node* hash_lookup(table t, unsigned char* ip, unsigned char* port, unsigned
     return null;
 
   for(iterator = t[index]->first; iterator != null; iterator = iterator->next)
-    if(memcmp(iterator->ip, ip, 4) == 0 && memcmp(iterator->port, port, 2) == 0 && memcmp(& (iterator->packet_id), & packID, sizeof(unsigned int)) == 0)
+    if(memcmp(& (iterator->ip), &ip, sizeof(__be32)) == 0 
+       && memcmp(& (iterator->port), &port, sizeof(__be16)) == 0 
+       && memcmp(& (iterator->packet_id), & packID, sizeof(unsigned int)) == 0)
       return iterator;
 
   return null;
@@ -191,7 +193,7 @@ void dump_table(const table t){
     if(t[i] != null){
       print("[%d] ********************** Hash row ******************************\n", i);
       for(iterator = t[i]->first; iterator != null; iterator = iterator->next){
-	print("[%d] ip: %s port: %s packetID: %u inTime: %ld\n", i, iterator->ip, iterator->port, iterator->packet_id, iterator->in_time);
+	print("[%d] ip: %u port: %hu packetID: %u inTime: %lld\n", i, iterator->ip, iterator->port, iterator->packet_id, iterator->in_time);
       }
       print("[%d] ********************** Hash row end **************************\n", i);
     }
@@ -213,6 +215,9 @@ s64 get_kernel_current_time(void){
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
+  unsigned char* transport_data;
+  s64 time = 0;
+  unsigned int id = 1;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -230,8 +235,13 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   if((udp_header->source) == *(unsigned short*) service_port){ 
-    s64 time = get_kernel_current_time();
-    //    put(& __table, ip_header->saddr, udp_header->source, unsigned int packID, time);
+    time = get_kernel_current_time();
+    transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
+    memcpy(&time, transport_data, 8);
+    memcpy(&id, transport_data + 8, 4);
+    print("PACKET: time: %llu id: %u\n",time, id);
+    //TODO: Check if conversion to host byte order is needed
+    put(& __table, ip_header->saddr, udp_header->source, id, time);
     return NF_ACCEPT;
   }
   
@@ -242,10 +252,9 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   struct iphdr* ip_header;
   struct udphdr* udp_header;
   unsigned char* transport_data;
-  unsigned int len;
-  u64 time = 0;
-  unsigned int id = 1;
-  int i;
+  unsigned int id;
+  hash_node* n;
+  s64 time_spent_in_node, acc_time;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -264,30 +273,19 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
   if((udp_header->source) == *(unsigned short*) service_port){ 
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
-    len = skb->len - sizeof(struct iphdr) - sizeof(struct udphdr);
-    print("============================ UDP packet caught ====================\n");
-    for(i = 0; i < len; i++){
-      if (i != 0 && ((i % 32) == 0))
-	print("\n");
-      print("%2X ", transport_data[i]);
-    }
-    memcpy(&time, transport_data, 8);
+    memcpy(&acc_time, transport_data, 8);
     memcpy(&id, transport_data + 8, 4);
-    print("\n%d time: %llu id: %u\n",sizeof(time),time, id);
-    print("============================ end of data ==========================\n");
-    //TODO:
-    //  Check if packet is in hash.
-    //  if so then
-    //    Remove node from hash
-    //    calculate time spent in node.
-    //    alter value in first 8 bytes of packet
-    //    recalculate udp checksum
-    //  else
-    //    packet was created in this node.
-    //    use value stored in packet to calculate time spent in node.
-    //    alter value
-    //    recalculate checksum
-    print("PACKET OF INTEREST.\n");
+    //TODO: Check if conversion to host byte order is needed
+    n = hash_lookup(__table, ip_header->saddr, udp_header->source, id);
+    
+    if(n != null){
+      time_spent_in_node = acc_time + (get_kernel_current_time() - n->in_time);
+      delete(& __table, n);
+    }else //packet was created in node
+      time_spent_in_node = get_kernel_current_time() - acc_time;
+    
+    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &time_spent_in_node, 8);
+    //TODO: check if ip/udp checksum recalculation is needed
     return NF_ACCEPT;
   }
   
