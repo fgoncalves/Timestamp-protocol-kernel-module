@@ -27,7 +27,7 @@ typedef struct t_node{
   unsigned char ip[4]; //ip in network byte order
   unsigned char port[2];
   unsigned int packet_id;
-  long in_time; //time since epoch when packet entered this node
+  long in_time; //kernel time at which packet entered this node
   struct t_node* before;
   struct t_node* next;
 } hash_node;
@@ -230,9 +230,8 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   if((udp_header->source) == *(unsigned short*) service_port){ 
-    //TODO:
-    //  Timestamp packet!
-    //  Create a node in the hash with the packet data and the timestamp obtained above.
+    s64 time = get_kernel_current_time();
+    //    put(& __table, ip_header->saddr, udp_header->source, unsigned int packID, time);
     return NF_ACCEPT;
   }
   
@@ -242,6 +241,11 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
 unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
+  unsigned char* transport_data;
+  unsigned int len;
+  u64 time = 0;
+  unsigned int id = 1;
+  int i;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -259,9 +263,22 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   if((udp_header->source) == *(unsigned short*) service_port){ 
+    transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
+    len = skb->len - sizeof(struct iphdr) - sizeof(struct udphdr);
+    print("============================ UDP packet caught ====================\n");
+    for(i = 0; i < len; i++){
+      if (i != 0 && ((i % 32) == 0))
+	print("\n");
+      print("%2X ", transport_data[i]);
+    }
+    memcpy(&time, transport_data, 8);
+    memcpy(&id, transport_data + 8, 4);
+    print("\n%d time: %llu id: %u\n",sizeof(time),time, id);
+    print("============================ end of data ==========================\n");
     //TODO:
     //  Check if packet is in hash.
     //  if so then
+    //    Remove node from hash
     //    calculate time spent in node.
     //    alter value in first 8 bytes of packet
     //    recalculate udp checksum
@@ -270,6 +287,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     //    use value stored in packet to calculate time spent in node.
     //    alter value
     //    recalculate checksum
+    print("PACKET OF INTEREST.\n");
     return NF_ACCEPT;
   }
   
@@ -277,7 +295,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 }
 
 int init_module(){
-  print("Packets are now being timestamped.");
+  print("Packets are now being timestamped.\n");
   __table = new_table();
   //Error in vmalloc
   if(__table == null)

@@ -1,13 +1,12 @@
 #include <stdio.h>
+#include <unistd.h>
 
 int main(){
-  unsigned int ip = 0;
-  
-  while(1){
-    if(ip >= (unsigned int) 0xFFFF)
-      break;
-    printf("%04X %02X 1 3\n",ip, 57843);
-    ip++;
+  unsigned int i = 0;
+
+  while(i < 65507){
+    write(1,"a",1);
+    i++;
   }
   return 0;
 }
