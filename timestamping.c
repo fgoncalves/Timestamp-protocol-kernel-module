@@ -8,12 +8,14 @@
 #include <linux/skbuff.h> 
 #include <linux/udp.h>
 #include <linux/time.h>
+#include <net/checksum.h>
 
 #define alloc(TSIZE,TYPE)\
-  (TYPE*) vmalloc(TSIZE * sizeof(TYPE))
+  (TYPE*) kmalloc(TSIZE * sizeof(TYPE), GFP_KERNEL);
+  //  (TYPE*) vmalloc(TSIZE * sizeof(TYPE))
 
 #define dealloc(PTR)\
-  vfree(PTR)
+  kfree(PTR)
 
 #define print printk
 
@@ -65,6 +67,7 @@ hash_node* new_node(__be32 ip, __be16 port, unsigned int packID, s64 inTime){
   new->before = null;
   new->next = null;
   return new;
+  return null;
 }
 
 sentinel* new_sentinel(void){
@@ -207,6 +210,43 @@ static struct nf_hook_ops nf_ip_post_routing;
 
 unsigned char* service_port = "\xE1\xF3";
 
+__be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* data){
+  __be32 sum = 0;
+  __be16 proto = 0x0011; //17 udp
+  __be16 data_length = (__be16) ntohs(udphdr->len) - sizeof(struct udphdr);
+  __be16 src[2];
+  __be16 dest[2];
+  __be16 *padded_data;
+  int padded_data_length, i;
+  
+  if(data_length % 2 != 0)
+    padded_data_length = (int) data_length / 2 + 1;
+  else
+    padded_data_length = (int) data_length / 2;
+
+  padded_data = alloc(padded_data_length, __be16);
+  padded_data[padded_data_length - 1] = 0;
+  memcpy(padded_data,data, padded_data_length);
+
+  print("len %X\n", udphdr->len);
+  print("data length %X\n", data_length);
+  print("padded data length %X\n", padded_data_length);
+
+  src[0] = (__be16) (iphdr->saddr >> 16);
+  src[1] = (__be16) (iphdr->saddr);
+  dest[0] = (__be16) (iphdr->daddr >> 16);
+  dest[1] = (__be16) (iphdr->daddr);
+  
+  sum = src[0] + src[1] + dest[0] + dest[1] + proto + data_length + udphdr->source + udphdr->dest + data_length;
+  
+  for(i = 0; i < padded_data_length; i++)
+    sum += padded_data[i];
+  
+  while(sum >> 16)
+    sum += (sum >> 16);
+  return (__be16) ~sum;
+}
+
 s64 get_kernel_current_time(void){
   struct timespec t = CURRENT_TIME;
   return timespec_to_ns(&t);
@@ -237,9 +277,8 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   if((udp_header->source) == *(unsigned short*) service_port){ 
     time = get_kernel_current_time();
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
-    memcpy(&time, transport_data, 8);
-    memcpy(&id, transport_data + 8, 4);
-    print("PACKET: time: %llu id: %u\n",time, id);
+    memcpy(&time, transport_data, sizeof(s64));
+    memcpy(&id, transport_data + sizeof(s64), sizeof(unsigned int));
     //TODO: Check if conversion to host byte order is needed
     put(& __table, ip_header->saddr, udp_header->source, id, time);
     return NF_ACCEPT;
@@ -255,7 +294,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   unsigned int id;
   hash_node* n;
   s64 time_spent_in_node, acc_time;
-
+  
   if(!skb){ 
     return NF_ACCEPT; 
   } 
@@ -272,20 +311,28 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   if((udp_header->source) == *(unsigned short*) service_port){ 
+    print("%X\n", udp_header->check);
+
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     memcpy(&acc_time, transport_data, 8);
     memcpy(&id, transport_data + 8, 4);
     //TODO: Check if conversion to host byte order is needed
     n = hash_lookup(__table, ip_header->saddr, udp_header->source, id);
-    
     if(n != null){
       time_spent_in_node = acc_time + (get_kernel_current_time() - n->in_time);
       delete(& __table, n);
     }else //packet was created in node
       time_spent_in_node = get_kernel_current_time() - acc_time;
-    
-    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &time_spent_in_node, 8);
-    //TODO: check if ip/udp checksum recalculation is needed
+    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), (&time_spent_in_node) + sizeof(s32), sizeof(s32));
+    __be16 check = 0;
+    inet_proto_csum_replace4(& (check), skb, *(__be32*) (skb->data + sizeof(struct iphdr) + sizeof(struct udphdr)), (__be32) time_spent_in_node, 1);
+
+    //TODO: udp checksum recalculation is needed
+    print("My checksum is: %X\n", udp_checksum(ip_header, udp_header, transport_data));
+    print("===================================================================\n");
+    print("UDP checksum is %X\n", check);
+    print("Time spent in node %llX\n",time_spent_in_node);
+    print("===================================================================\n");
     return NF_ACCEPT;
   }
   
@@ -311,6 +358,7 @@ int init_module(){
   nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_post_routing);
 
+  dump_table(__table);
   return 0;
 }
 
