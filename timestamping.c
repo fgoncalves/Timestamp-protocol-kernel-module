@@ -323,6 +323,10 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
       time_spent_in_node = get_kernel_current_time() - acc_time;
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &time_spent_in_node, sizeof(s64));
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
+
+    if(!udp_header->check)
+      udp_header->check = 0xFFFF;
+
     return NF_ACCEPT;
   }
   
