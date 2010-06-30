@@ -252,6 +252,19 @@ s64 get_kernel_current_time(void){
   return timespec_to_ns(&t);
 }
 
+s64 time_diff(s64 a, s64 b){
+  struct timespec ats = ns_to_timespec(a);
+  struct timespec bts = ns_to_timespec(b);
+  struct timespec diff = timespec_sub(ats,bts);
+  return timespec_to_ns(& diff);
+} 
+
+s64 time_sum(s64 a, s64 b){
+  struct timespec ats = ns_to_timespec(a);
+  timespec_add_ns(&ats,b);
+  return timespec_to_ns(& ats);
+} 
+
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
@@ -315,12 +328,14 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     memcpy(&acc_time, transport_data, 8);
     memcpy(&id, transport_data + 8, 4);
     //TODO: Check if conversion to host byte order is needed
+
     n = hash_lookup(__table, ip_header->saddr, udp_header->source, id);
     if(n != null){
-      time_spent_in_node = acc_time + (get_kernel_current_time() - n->in_time);
+      time_spent_in_node = time_sum(acc_time,time_diff(get_kernel_current_time(),n->in_time));
       delete(& __table, n);
     }else //packet was created in node
-      time_spent_in_node = get_kernel_current_time() - acc_time;
+      time_spent_in_node = time_diff(get_kernel_current_time(),acc_time);
+
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &time_spent_in_node, sizeof(s64));
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
 
