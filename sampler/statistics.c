@@ -34,8 +34,8 @@ void write_data(unsigned long long tstamp, unsigned int id, char* source){
   info = localtime(&ts.tv_sec);
   strftime(buffer,80, "%X",info);
   milli_seconds = (unsigned long long) ts.tv_nsec / msec_per_sec;
-  //  fprintf(file_fd,"%s:$lld\t\t\t%u\t\t\t%s\n",buffer,milli_seconds, id, source);
-  fprintf(file_fd,"%lld\t\t\t%u\t\t\t%s\n",tstamp, id, source);
+  //  fprintf(file_fd,"%s:%llu\t\t\t%u\t\t\t%s\n",buffer,milli_seconds, id, source);
+  fprintf(file_fd,"%llu\t\t\t%u\t\t\t%s\n",tstamp, id, source);
 }
 
 void close_statistics(){

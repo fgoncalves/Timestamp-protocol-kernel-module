@@ -111,15 +111,13 @@ void send_packet(socket_list *destination_sockets){
 
 void treat_packet(socket_list * destination_sockets){
   item i;
-  struct timespec ts;
 
   while(true){
     i = consume(receiving_queue);
     pthread_mutex_lock(& lock);
     
-    if(is_sink){
-      clock_gettime(CLOCK_REALTIME, &ts);
-      write_data(timespec_to_ns(ts) - i.packet.accumulated_time, i.packet.id, i.source);
+    if(is_sink){;
+      write_data(i.in_time, i.packet.id, i.source);
     }
 
     pthread_mutex_unlock(& lock);

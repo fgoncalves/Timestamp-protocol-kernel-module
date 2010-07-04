@@ -14,6 +14,7 @@
 #include "socket_list.h"
 #include "thread_functions.h"
 #include "statistics.h"
+#include "timestamp.h"
 
 typedef int socket_fd;
 
@@ -158,6 +159,7 @@ void serve(int server_fd){
   char source_ip_port[22] = {0};
   item it;
   struct sockaddr_in client;
+  struct timespec ts;
 
   while(true){
     memset(buff, 0, sizeof(packet_t));
@@ -169,6 +171,8 @@ void serve(int server_fd){
     if(recvfrom(server_fd, buff, sizeof(packet_t), 0,(struct sockaddr *) & client, &client_length) != -1){
       memcpy(& (it.packet), buff, sizeof(packet_t));
 
+      clock_gettime(CLOCK_REALTIME, &ts);
+      it.in_time = timespec_to_ns(ts) - it.packet.accumulated_time;
       memset(source_ip_port,0, 22);
       sprintf(source_ip_port, "%s:%hu", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
       memcpy(it.source, source_ip_port, 22); 
