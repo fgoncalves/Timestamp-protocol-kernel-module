@@ -1,0 +1,2 @@
+# All ralink wireless are named rausbwifi
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="ra*", NAME="rausbwifi"
