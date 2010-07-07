@@ -85,3 +85,16 @@ card |        ip       | Register
   1  | 192.168.0.1     | MV-25
   2  | 192.168.0.2     | MV-26
   3  | 192.168.0.3     | MV-27
+
+How to compile kernel in the TS-7500 node
+=========================================
+
+* Download the kernel from: ftp://ftp.embeddedarm.com/ts-arm-sbc/ts-7500-linux/sources/linux-2.6.24-ts-src-aug102009.tar.gz
+* Put the source in some other disk as there is no space in the normal card
+* Change makefile (Put the last option)
+    KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+                       -fno-strict-aliasing -fno-common \
+                       -Werror-implicit-function-declaration \
+                       -fno-tree-scev-cprop
+
+* Use the .config file in this directory to compile the kernel
