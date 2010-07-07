@@ -1,3 +1,15 @@
+#ifndef __KERNEL__
+#define __KERNEL__
+#endif
+
+#ifndef __MODULE__
+#define __MODULE__
+#endif
+
+#ifndef CONFIG_NETFILTER
+#define CONFIG_NETFILTER
+#endif
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/vmalloc.h>
@@ -250,19 +262,19 @@ int init_module(){
 
   nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
   nf_ip_pre_routing.pf = PF_INET;                              
-  nf_ip_pre_routing.hooknum = NF_INET_PRE_ROUTING;
+  nf_ip_pre_routing.hooknum = NF_IP_PRE_ROUTING;
   nf_ip_pre_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_pre_routing);
 
   nf_ip_post_routing.hook = nf_ip_post_routing_hook;
   nf_ip_post_routing.pf = PF_INET;
-  nf_ip_post_routing.hooknum = NF_INET_POST_ROUTING;
+  nf_ip_post_routing.hooknum = NF_IP_POST_ROUTING;
   nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_post_routing);
 
   nf_ip_local_out.hook = nf_ip_local_out_hook;
   nf_ip_local_out.pf = PF_INET;
-  nf_ip_local_out.hooknum = NF_INET_LOCAL_OUT;
+  nf_ip_local_out.hooknum = NF_IP_LOCAL_OUT;
   nf_ip_local_out.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_out);
 
