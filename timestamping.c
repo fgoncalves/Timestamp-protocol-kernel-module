@@ -37,6 +37,18 @@
 
 #define __udp_proto_id__ 17
 
+#ifdef NF_IP_PRE_ROUTING
+#define ip_pre_routing NF_IP_PRE_ROUTING
+#else
+#define ip_pre_routing NF_INET_PRE_ROUTING
+#endif
+
+#ifdef NF_IP_POST_ROUTING
+#define ip_post_routing NF_IP_POST_ROUTING
+#else
+#define ip_post_routing NF_INET_POST_ROUTING
+#endif
+
 typedef struct t_node{
   __be32 ip; //ip in network byte order
   __be16 port;
@@ -356,26 +368,16 @@ int init_module(){
 
   nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
   nf_ip_pre_routing.pf = PF_INET;                              
-  nf_ip_pre_routing.hooknum = NF_IP_PRE_ROUTING;
+  nf_ip_pre_routing.hooknum = ip_pre_routing;
   nf_ip_pre_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_pre_routing);
 
   nf_ip_post_routing.hook = nf_ip_post_routing_hook;
   nf_ip_post_routing.pf = PF_INET;
-  nf_ip_post_routing.hooknum = NF_IP_POST_ROUTING;
+  nf_ip_post_routing.hooknum = ip_post_routing;
   nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_post_routing);
 
-<<<<<<< HEAD
-  dump_table(__table);
-=======
-  nf_ip_local_out.hook = nf_ip_local_out_hook;
-  nf_ip_local_out.pf = PF_INET;
-  nf_ip_local_out.hooknum = NF_IP_LOCAL_OUT;
-  nf_ip_local_out.priority = NF_IP_PRI_FIRST;
-  nf_register_hook(& nf_ip_local_out);
-
->>>>>>> 1be17868bfb9f8e6e2c0907c0f12a1c8680ac25c
   return 0;
 }
 
