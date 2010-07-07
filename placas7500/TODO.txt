@@ -1,0 +1,4 @@
+TODO LIST
+=========
+
+* PUT both LEDS on if wifi adhoc link is not working correctly
