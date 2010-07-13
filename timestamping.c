@@ -135,7 +135,7 @@ void put(table* t, __be32 ip, __be16 port, unsigned int packID, s64 inTime){
 
   if((*t)[index] == null){
     (*t)[index] = new_sentinel();
-    //Error in vmalloc
+    //Error in kmalloc
     if((*t)[index] == null)
       return;
   }
@@ -276,6 +276,29 @@ s64 get_kernel_current_time(void){
   return timespec_to_ns(&t);
 }
 
+s64 swap_time_byte_order(s64 time){
+  unsigned char* bytes = (unsigned char*) &time;
+  uint32_t word;
+
+  memcpy(&word, bytes, sizeof(uint32_t));
+  word = htonl(word);
+  memcpy(bytes, &word, sizeof(uint32_t));
+  
+  memcpy(&word, bytes + sizeof(uint32_t), sizeof(uint32_t));
+  word = htonl(word);
+  memcpy(bytes + sizeof(uint32_t), &word, sizeof(uint32_t));
+  
+  return * ((s64 *) bytes);
+}
+
+void var_dump(unsigned char* var, int size){
+  int i;
+  for(i = 0; i < size; i++){
+    print("%2X ", var[i]);
+  }
+  print("\n");
+}
+
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
@@ -301,10 +324,14 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   if((udp_header->source) == *(unsigned short*) service_port){ 
     time = get_kernel_current_time();
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
+
+    var_dump(transport_data, 12);
+
     memcpy(&time, transport_data, sizeof(s64));
     memcpy(&id, transport_data + sizeof(s64), sizeof(unsigned int));
-    //TODO: Check if conversion to host byte order is needed
-    put(& __table, ip_header->saddr, udp_header->source, id, time);
+
+    //Because time is already in host byte order, conversion is not needed
+    put(& __table, ip_header->saddr, udp_header->source, ntohl(id), time);
     return NF_ACCEPT;
   }
   
@@ -337,15 +364,17 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   if((udp_header->source) == *(unsigned short*) service_port){ 
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     memcpy(&acc_time, transport_data, 8);
+    acc_time = swap_time_byte_order(acc_time);
     memcpy(&id, transport_data + 8, 4);
-    //TODO: Check if conversion to host byte order is needed
 
-    n = hash_lookup(__table, ip_header->saddr, udp_header->source, id);
+    n = hash_lookup(__table, ip_header->saddr, udp_header->source, ntohl(id));
     if(n != null){
       time_spent_in_node = acc_time + (get_kernel_current_time() - n->in_time);
       delete(& __table, n);
     }else //packet was created in node
       time_spent_in_node = get_kernel_current_time() - acc_time;
+
+    time_spent_in_node = swap_time_byte_order(time_spent_in_node);
 
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &time_spent_in_node, sizeof(s64));
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
@@ -362,7 +391,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 int init_module(){
   print("Packets are now being timestamped.\n");
   __table = new_table();
-  //Error in vmalloc
+  //Error in kmalloc
   if(__table == null)
     return -1;
 
