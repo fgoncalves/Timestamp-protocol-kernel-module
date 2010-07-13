@@ -291,14 +291,6 @@ s64 swap_time_byte_order(s64 time){
   return * ((s64 *) bytes);
 }
 
-void var_dump(unsigned char* var, int size){
-  int i;
-  for(i = 0; i < size; i++){
-    print("%2X ", var[i]);
-  }
-  print("\n");
-}
-
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
@@ -324,8 +316,6 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   if((udp_header->source) == *(unsigned short*) service_port){ 
     time = get_kernel_current_time();
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
-
-    var_dump(transport_data, 12);
 
     memcpy(&time, transport_data, sizeof(s64));
     memcpy(&id, transport_data + sizeof(s64), sizeof(unsigned int));
