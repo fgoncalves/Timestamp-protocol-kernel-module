@@ -4,6 +4,8 @@
 #include <semaphore.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <string.h>
 
 typedef struct {
   /*s64*/ unsigned long long accumulated_time;
@@ -33,4 +35,8 @@ extern struct queue_t* new_blocking_queue(int capcity);
 extern void produce(struct queue_t* q, item i);
 extern item consume(struct queue_t* q);
 extern void destroy_queue(struct queue_t* q);
+
+extern void convert_packet_to_network_byte_order(packet_t* packet);
+extern void convert_packet_to_host_byte_order(packet_t* packet);
+extern void var_dump(unsigned char* bytes, int size);
 #endif

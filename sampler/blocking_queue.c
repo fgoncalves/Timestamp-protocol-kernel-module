@@ -4,6 +4,40 @@
 #include "macros.h"
 #include "blocking_queue.h"
 
+void var_dump(unsigned char* bytes, int size){
+  int i = 0;
+  for(; i < size; i++)
+    printf("%2X ", bytes[i]);
+  putchar('\n');
+}
+
+void convert_packet_to_network_byte_order(packet_t* packet){
+  unsigned char* bytes = (unsigned char*) packet;
+
+  uint32_t word;
+
+  memcpy(&word, bytes, 4);
+  word = htonl(word);
+  memcpy(bytes, &word, 4);
+
+  memcpy(&word, bytes + 4, 4);
+  word = htonl(word);
+  memcpy(bytes + 4, &word, 4);
+
+  memcpy(&word, bytes + 8, 4);
+  word = htonl(word);
+  memcpy(bytes + 8, &word, 4);
+
+  var_dump(bytes, sizeof(packet_t));
+
+  packet = (packet_t*) bytes;
+  //TODO: samples need conversion?
+}
+
+void convert_packet_to_host_byte_order(packet_t* packet){
+  convert_packet_to_network_byte_order(packet);
+}
+
 static void semaphore_initialization_error_reason(){
   switch(errno){
   case EINVAL:
