@@ -78,7 +78,7 @@ static void send_to_all(packet_t Item, socket_list *destination_sockets){
 }
 
 static void init_packet(packet_t* packet){
-  static unsigned int id = 0xbeef;
+  static unsigned int id = 0;
   struct timespec ts;
   unsigned long long creation_timestamp;
 
@@ -100,8 +100,8 @@ void send_packet(socket_list *destination_sockets){
     memset(&anything, 0, sizeof(anything));
     init_packet(&anything);
     
-    convert_packet_to_network_byte_order(&anything);
-    var_dump((unsigned char*) &anything, sizeof(anything));
+    swap_packet_byte_order(&anything);
+
     send_to_all(anything, destination_sockets);
     npackets--;
     usleep(usleep_time);

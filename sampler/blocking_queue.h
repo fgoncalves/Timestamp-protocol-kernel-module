@@ -36,7 +36,5 @@ extern void produce(struct queue_t* q, item i);
 extern item consume(struct queue_t* q);
 extern void destroy_queue(struct queue_t* q);
 
-extern void convert_packet_to_network_byte_order(packet_t* packet);
-extern void convert_packet_to_host_byte_order(packet_t* packet);
-extern void var_dump(unsigned char* bytes, int size);
+extern void swap_packet_byte_order(packet_t* packet);
 #endif

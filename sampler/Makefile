@@ -1,6 +1,6 @@
 CC=gcc
 SPECIAL_FLAGS=-lrt -lpthread
-CFLAGS=-c -Wall -g
+CFLAGS=-c -Wall
 OUT=sampler
 
 all: main.o macros.h

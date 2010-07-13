@@ -171,7 +171,7 @@ void serve(int server_fd){
     if(recvfrom(server_fd, buff, sizeof(packet_t), 0,(struct sockaddr *) & client, &client_length) != -1){
       memcpy(& (it.packet), buff, sizeof(packet_t));
       
-      convert_packet_to_host_byte_order(& (it.packet));
+      swap_packet_byte_order(& (it.packet));
 
       clock_gettime(CLOCK_REALTIME, &ts);
       it.in_time = timespec_to_ns(ts) - it.packet.accumulated_time;
