@@ -8,9 +8,12 @@ FIRST STEPS - Connect to the RT7750 with serial cable
 * Install minicom
 * Run sudo minicom -s
 * Set in Serial Port Setup
-    ** Serial Device: /dev/ttyUSB0 (or /dev/ttyUSB1)
-    ** Bps: 115200 8N1
-    ** Hardware Flow Control: No
+
+  * Serial Device: /dev/ttyUSB0 (or /dev/ttyUSB1)
+
+  * Bps: 115200 8N1
+
+  * Hardware Flow Control: No
 
 
 Documentation URLs
@@ -103,7 +106,7 @@ First compile the kernel
 
 * In the 2.6.24.4-cavium directory change the Makefile pointing it to the correct path. In my case:
 
-** CROSS_COMPILE	?= /home/workspace/plaquinhas/kernel/arm-uclibc-3.4.6/bin/arm-linux-
+  * CROSS_COMPILE	?= /home/workspace/plaquinhas/kernel/arm-uclibc-3.4.6/bin/arm-linux-
 
 * Put the crosstoll chain in the path
 
@@ -164,9 +167,9 @@ Copy the kernel and initrd to the flash in the arm
 
 * In the arm do:
 
-** spiflashctl -W 4095 -z 512 -k part1 -i /whatever/zImage
-** spiflashctl -W 32 -z 65536 -k part2 -i /whaterver/initrd
-** sync
+  * spiflashctl -W 4095 -z 512 -k part1 -i /whatever/zImage
+  * spiflashctl -W 32 -z 65536 -k part2 -i /whaterver/initrd
+  * sync
 
 Note that you probably can do the first two dd's in the card, but I always get an error doing it. It create enormous files.
 
