@@ -24,7 +24,6 @@
 
 #define alloc(TSIZE,TYPE)\
   (TYPE*) kmalloc(TSIZE * sizeof(TYPE), GFP_KERNEL);
-  //  (TYPE*) vmalloc(TSIZE * sizeof(TYPE))
 
 #define dealloc(PTR)\
   kfree(PTR)
@@ -232,7 +231,7 @@ table __table;
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
 
-unsigned char* service_port = "\xE1\xF3";
+unsigned short service_port = 57843;
 
 __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* data){
   __be32 sum = 0;
@@ -313,7 +312,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
-  if((udp_header->source) == *(unsigned short*) service_port){ 
+  if((udp_header->source) == (unsigned short) htons(service_port)){ 
     time = get_kernel_current_time();
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
 
@@ -351,7 +350,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
-  if((udp_header->source) == *(unsigned short*) service_port){ 
+  if((udp_header->source) == (unsigned short) htons(service_port)){
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     memcpy(&acc_time, transport_data, 8);
     acc_time = swap_time_byte_order(acc_time);
