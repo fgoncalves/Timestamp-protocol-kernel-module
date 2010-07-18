@@ -333,7 +333,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   unsigned char* transport_data;
   unsigned int id;
   hash_node* n;
-  s64 time_spent_in_node, acc_time;
+  s64 total_accumulated_time, acc_time;
   
   if(!skb){ 
     return NF_ACCEPT; 
@@ -358,14 +358,14 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
     n = hash_lookup(__table, ip_header->saddr, udp_header->source, ntohl(id));
     if(n != null){
-      time_spent_in_node = acc_time + (get_kernel_current_time() - n->in_time);
+      total_accumulated_time = acc_time + (get_kernel_current_time() - n->in_time);
       delete(& __table, n);
     }else //packet was created in node
-      time_spent_in_node = get_kernel_current_time() - acc_time;
+      total_accumulated_time = get_kernel_current_time() - acc_time;
 
-    time_spent_in_node = swap_time_byte_order(time_spent_in_node);
+    total_accumulated_time = swap_time_byte_order(total_accumulated_time);
 
-    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &time_spent_in_node, sizeof(s64));
+    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &total_accumulated_time, sizeof(s64));
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
 
     if(!udp_header->check)
