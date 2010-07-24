@@ -48,15 +48,24 @@
 #define ip_post_routing NF_INET_POST_ROUTING
 #endif
 
+/*
+ * This structure represents a node in a hash table row. 
+ * It contains the basic information about a packet that arrived to this node.
+ *
+ * When the packet is ready to leave the node, its corresponding hash_node gets deleted from the hash table.
+ */
 typedef struct t_node{
   __be32 ip; //ip in network byte order
-  __be16 port;
-  unsigned int packet_id;
+  __be16 port; //port in network byte order. This should be removed because it is always the same.
+  unsigned int packet_id; //packet's id. Used to distinguish packet's from the same origin
   s64 in_time; //kernel time at which packet entered this node
   struct t_node* before;
   struct t_node* next;
 } hash_node;
 
+/*
+ * This structure keeps pointers to the begining and end of each hash row.
+ */
 typedef struct t_sentinel{
   struct t_node* first;
   struct t_node* last;
@@ -64,6 +73,10 @@ typedef struct t_sentinel{
 
 typedef sentinel** table;
 
+/*
+ * Alloc a new table and initialize it.
+ * Each table entry will be set to NULL.
+ */
 table new_table(void){
   int i;
   table t = alloc(hash_size,sentinel*);
@@ -77,6 +90,11 @@ table new_table(void){
   return t;
 }
 
+/*
+ * Create a new hash node, that will contain information about the received packet.
+ * next and before pointers will be set to NULL, so proper insertion in a hash row must be done
+ * in another function.
+ */
 hash_node* new_node(__be32 ip, __be16 port, unsigned int packID, s64 inTime){
   hash_node* new = alloc(1,hash_node);
   if(new == null){
@@ -90,9 +108,12 @@ hash_node* new_node(__be32 ip, __be16 port, unsigned int packID, s64 inTime){
   new->before = null;
   new->next = null;
   return new;
-  return null;
 }
 
+/*
+ * This function will create a sentinel structure with zero elements.
+ * first and last will be set to NULL.
+ */
 sentinel* new_sentinel(void){
   sentinel* s = alloc(1,sentinel);
   if(s == null){
@@ -104,9 +125,13 @@ sentinel* new_sentinel(void){
   return s;
 }
 
+/*
+ * This function provides an index based on the given arguments.
+ * The 17 in h ^= g >> 17 can be change to provide higher or lower precision.
+ */
 unsigned long hash_index(__be32 ip, __be16 port, unsigned int packID){
-  unsigned long h = 0, g;
-  
+  unsigned long h = 0, g;  
+
   unsigned char name[sizeof(__be32) + sizeof(__be16) + sizeof(unsigned int)];
 
   memcpy(name, &ip, sizeof(__be32));
@@ -122,6 +147,9 @@ unsigned long hash_index(__be32 ip, __be16 port, unsigned int packID){
   return h % hash_size;
 }
 
+/*
+ * This function simply creates a node in the hash with the given data.
+ */
 void put(table* t, __be32 ip, __be16 port, unsigned int packID, s64 inTime){
   hash_node* node = new_node(ip, port, packID, inTime);
   unsigned long index;
@@ -132,6 +160,8 @@ void put(table* t, __be32 ip, __be16 port, unsigned int packID, s64 inTime){
 
   index = hash_index(node->ip, node->port, node->packet_id);
 
+  //if (*t)[index] is null, then this is the first element in the hash row.
+  //In this situation a sentinel structure must be created.
   if((*t)[index] == null){
     (*t)[index] = new_sentinel();
     //Error in kmalloc
@@ -139,17 +169,24 @@ void put(table* t, __be32 ip, __be16 port, unsigned int packID, s64 inTime){
       return;
   }
 
+  //This if may be included in the one above, as it tests the same thing.
   if((*t)[index]->first == null){
     (*t)[index]->first = node;
     (*t)[index]->last = node;
     return;
   }
+
+  //If we got this far, then the hash row has one or more elements and we insert this new one
+  //at the end of it.
   node->before = (*t)[index]->last;
   (*t)[index]->last->next = node;
   (*t)[index]->last = node;
   return;
 }
 
+/*
+ * Look for a node in the hash table. If such node could not be found null will be returned.
+ */
 hash_node* hash_lookup(table t, __be32 ip, __be16 port, unsigned int packID){
   hash_node* iterator;
   unsigned long index = hash_index(ip, port,packID);
@@ -166,6 +203,9 @@ hash_node* hash_lookup(table t, __be32 ip, __be16 port, unsigned int packID){
   return null;
 }
 
+/*
+ * Delete a node from a table.
+ */
 void delete(table* t, hash_node* node){
   unsigned long index = hash_index(node->ip, node->port, node->packet_id);
   
@@ -199,6 +239,9 @@ void delete(table* t, hash_node* node){
   return;
 }
 
+/*
+ * Delete the entire table.
+ */
 void explode_table(table* t){
   int i;
   hash_node* iterator, *aux;
@@ -212,6 +255,9 @@ void explode_table(table* t){
   dealloc(*t);
 }
 
+/*
+ * Print all elements in the table.
+ */
 void dump_table(const table t){
   int i;
   hash_node* iterator;
@@ -231,8 +277,14 @@ table __table;
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
 
+//This is the service port that the user level program must bind to
 unsigned short service_port = 57843;
 
+/*
+ * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
+ *
+ * This may be changed in the future.
+ */
 __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* data){
   __be32 sum = 0;
   __be16 proto = 0x1100; //17 udp
@@ -270,11 +322,18 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
   return (__be16) ~sum;
 }
 
+/*
+ * Obtain a 64 bit value representing the nanoseconds since the Epoch.
+ */
 s64 get_kernel_current_time(void){
   struct timespec t = CURRENT_TIME;
   return timespec_to_ns(&t);
 }
 
+/*
+ * This function is used to convert network byte order to host byte order and vice versa,
+ * of a 64 bit variable.
+ */
 s64 swap_time_byte_order(s64 time){
   unsigned char* bytes = (unsigned char*) &time;
   uint32_t word;
