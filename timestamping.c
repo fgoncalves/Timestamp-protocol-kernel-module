@@ -349,6 +349,9 @@ s64 swap_time_byte_order(s64 time){
   return * ((s64 *) bytes);
 }
 
+/*
+ * This hook will run when a packet enters this node. It will timestamp the packet and put it in our hash table.
+ */
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
@@ -363,6 +366,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     return NF_ACCEPT; 
   }
   
+  // If packet is not UDP we don't need to check it.
   ip_header = ip_hdr(skb);
   if(ip_header->protocol != __udp_proto_id__){ 
     return NF_ACCEPT;
@@ -371,6 +375,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
+  // We're only interested in packets that have our service port as source port.
   if((udp_header->source) == (unsigned short) htons(service_port)){ 
     time = get_kernel_current_time();
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
@@ -386,6 +391,9 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   return NF_ACCEPT;
 }
 
+/*
+ * This hook will run when a packet is ready to exit this node. Notice that this will run if packets where created in the node or if they need to be routed.
+ */
 unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
@@ -411,20 +419,25 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
   if((udp_header->source) == (unsigned short) htons(service_port)){
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
+    // The first 8 bytes of the data should be the total accumulated time.
     memcpy(&acc_time, transport_data, 8);
+    // Change the byte order to host byte order.
     acc_time = swap_time_byte_order(acc_time);
     memcpy(&id, transport_data + 8, 4);
 
     n = hash_lookup(__table, ip_header->saddr, udp_header->source, ntohl(id));
-    if(n != null){
+    if(n != null){ // If packet exists in hash, then it was created by another node.
       total_accumulated_time = acc_time + (get_kernel_current_time() - n->in_time);
+      // Here we don't need it anymore so it will be deleted from the hash table.
       delete(& __table, n);
     }else //packet was created in node
       total_accumulated_time = get_kernel_current_time() - acc_time;
 
+    // Change time to network byte order
     total_accumulated_time = swap_time_byte_order(total_accumulated_time);
 
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &total_accumulated_time, sizeof(s64));
+    // recalculate UDP checksum.
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
 
     if(!udp_header->check)
@@ -437,7 +450,6 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 }
 
 int init_module(){
-  print("Packets are now being timestamped.\n");
   __table = new_table();
   //Error in kmalloc
   if(__table == null)
@@ -454,7 +466,7 @@ int init_module(){
   nf_ip_post_routing.hooknum = ip_post_routing;
   nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_post_routing);
-
+  print("Packets are now being timestamped.\n");
   return 0;
 }
 
