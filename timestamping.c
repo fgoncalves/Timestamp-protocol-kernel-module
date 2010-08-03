@@ -20,7 +20,6 @@
 #include <linux/skbuff.h> 
 #include <linux/udp.h>
 #include <linux/time.h>
-#include <net/checksum.h>
 
 #define alloc(TSIZE,TYPE)\
   (TYPE*) kmalloc(TSIZE * sizeof(TYPE), GFP_KERNEL);
@@ -31,8 +30,6 @@
 #define print printk
 
 #define null NULL
-
-#define hash_size 311
 
 #define __udp_proto_id__ 17
 
@@ -48,234 +45,15 @@
 #define ip_post_routing NF_INET_POST_ROUTING
 #endif
 
-/*
- * This structure represents a node in a hash table row. 
- * It contains the basic information about a packet that arrived to this node.
- *
- * When the packet is ready to leave the node, its corresponding hash_node gets deleted from the hash table.
- */
-typedef struct t_node{
-  __be32 ip; //ip in network byte order
-  __be16 port; //port in network byte order. This should be removed because it is always the same.
-  unsigned int packet_id; //packet's id. Used to distinguish packet's from the same origin
-  s64 in_time; //kernel time at which packet entered this node
-  struct t_node* before;
-  struct t_node* next;
-} hash_node;
-
-/*
- * This structure keeps pointers to the begining and end of each hash row.
- */
-typedef struct t_sentinel{
-  struct t_node* first;
-  struct t_node* last;
-} sentinel;
-
-typedef sentinel** table;
-
-/*
- * Alloc a new table and initialize it.
- * Each table entry will be set to NULL.
- */
-table new_table(void){
-  int i;
-  table t = alloc(hash_size,sentinel*);
-  if(t == null){
-    print("[new_table] Fatal error in vmalloc.\n");
-    return null;
-  }
-
-  for(i = 0; i < hash_size; i++)
-    t[i] = null;
-  return t;
-}
-
-/*
- * Create a new hash node, that will contain information about the received packet.
- * next and before pointers will be set to NULL, so proper insertion in a hash row must be done
- * in another function.
- */
-hash_node* new_node(__be32 ip, __be16 port, unsigned int packID, s64 inTime){
-  hash_node* new = alloc(1,hash_node);
-  if(new == null){
-    print("[new_node] Fatal error in vmalloc.\n");
-    return null;
-  }
-  memcpy(& (new->ip), &ip, sizeof(__be32));
-  memcpy(& (new->port), &port, sizeof(__be16));
-  memcpy(& (new->packet_id), & packID, sizeof(unsigned int));
-  memcpy(& (new->in_time), & inTime, sizeof(s64));
-  new->before = null;
-  new->next = null;
-  return new;
-}
-
-/*
- * This function will create a sentinel structure with zero elements.
- * first and last will be set to NULL.
- */
-sentinel* new_sentinel(void){
-  sentinel* s = alloc(1,sentinel);
-  if(s == null){
-    print("[new_sentinel] Fatal error in vmalloc.\n");
-    return null;
-  }
-  s->first = null;
-  s->last = null;
-  return s;
-}
-
-/*
- * This function provides an index based on the given arguments.
- * The 17 in h ^= g >> 17 can be change to provide higher or lower precision.
- */
-unsigned long hash_index(__be32 ip, __be16 port, unsigned int packID){
-  unsigned long h = 0, g;  
-
-  unsigned char name[sizeof(__be32) + sizeof(__be16) + sizeof(unsigned int)];
-
-  memcpy(name, &ip, sizeof(__be32));
-  memcpy(name + 4, &port, sizeof(__be16));
-  memcpy(name + 6, &packID, sizeof(unsigned int));
-
-  while (*name){
-    h = ( h << 4 ) + (*name)++;    
-    if ((g = h & 0xF0000000L)) {h ^= g >> 17;}    
-    h &= ~g;
-  }
-  
-  return h % hash_size;
-}
-
-/*
- * This function simply creates a node in the hash with the given data.
- */
-void put(table* t, __be32 ip, __be16 port, unsigned int packID, s64 inTime){
-  hash_node* node = new_node(ip, port, packID, inTime);
-  unsigned long index;
-
-  if(node == null){
-    return;
-  }
-
-  index = hash_index(node->ip, node->port, node->packet_id);
-
-  //if (*t)[index] is null, then this is the first element in the hash row.
-  //In this situation a sentinel structure must be created.
-  if((*t)[index] == null){
-    (*t)[index] = new_sentinel();
-    //Error in kmalloc
-    if((*t)[index] == null)
-      return;
-  }
-
-  //This if may be included in the one above, as it tests the same thing.
-  if((*t)[index]->first == null){
-    (*t)[index]->first = node;
-    (*t)[index]->last = node;
-    return;
-  }
-
-  //If we got this far, then the hash row has one or more elements and we insert this new one
-  //at the end of it.
-  node->before = (*t)[index]->last;
-  (*t)[index]->last->next = node;
-  (*t)[index]->last = node;
-  return;
-}
-
-/*
- * Look for a node in the hash table. If such node could not be found null will be returned.
- */
-hash_node* hash_lookup(table t, __be32 ip, __be16 port, unsigned int packID){
-  hash_node* iterator;
-  unsigned long index = hash_index(ip, port,packID);
-
-  if(t[index] == null)
-    return null;
-
-  for(iterator = t[index]->first; iterator != null; iterator = iterator->next)
-    if(memcmp(& (iterator->ip), &ip, sizeof(__be32)) == 0 
-       && memcmp(& (iterator->port), &port, sizeof(__be16)) == 0 
-       && memcmp(& (iterator->packet_id), & packID, sizeof(unsigned int)) == 0)
-      return iterator;
-
-  return null;
-}
-
-/*
- * Delete a node from a table.
- */
-void delete(table* t, hash_node* node){
-  unsigned long index = hash_index(node->ip, node->port, node->packet_id);
-  
-  //Only one element in hash row
-  if(node->next == null && node->before == null){
-    dealloc(node);
-    dealloc((*t)[index]);
-    return;
-  }
-
-  //first element in hash row
-  if(node->before == null){
-    (*t)[index]->first = node->next;
-    node->next->before = null;
-    dealloc(node);
-    return;
-  }
-
-  //last element in hash row
-  if(node->next == null){
-    (*t)[index]->last = node->before;
-    node->before->next = null;
-    dealloc(node);
-    return;
-  }
-
-  //element in the middle of the row
-  node->before->next = node->next;
-  node->next->before = node->before;
-  dealloc(node);
-  return;
-}
-
-/*
- * Delete the entire table.
- */
-void explode_table(table* t){
-  int i;
-  hash_node* iterator, *aux;
-  for(i = 0; i < hash_size; i++)
-    if((*t)[i] != null)
-      for(iterator = (*t)[i]->first; iterator != null;){
-	aux = iterator;
-	iterator = iterator->next;
-	delete(t,aux);
-      }
-  dealloc(*t);
-}
-
-/*
- * Print all elements in the table.
- */
-void dump_table(const table t){
-  int i;
-  hash_node* iterator;
-  for(i = 0; i < hash_size; i++){
-    if(t[i] != null){
-      print("[%d] ********************** Hash row ******************************\n", i);
-      for(iterator = t[i]->first; iterator != null; iterator = iterator->next){
-	print("[%d] ip: %u port: %hu packetID: %u inTime: %lld\n", i, iterator->ip, iterator->port, iterator->packet_id, iterator->in_time);
-      }
-      print("[%d] ********************** Hash row end **************************\n", i);
-    }
-  }
-}
-
-table __table;
+#ifdef NF_IP_LOCAL_IN
+#define ip_local_in NF_IP_LOCAL_IN
+#else
+#define ip_local_in NF_INET_LOCAL_IN
+#endif
 
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
+static struct nf_hook_ops nf_ip_local_in;
 
 //This is the service port that the user level program must bind to
 unsigned short service_port = 57843;
@@ -319,6 +97,9 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
  
   while(sum >> 16)
     sum = (__be16) (sum & 0xFFFF) + (__be16) (sum >> 16);
+
+  dealloc(padded_data);
+  
   return (__be16) ~sum;
 }
 
@@ -350,14 +131,13 @@ s64 swap_time_byte_order(s64 time){
 }
 
 /*
- * This hook will run when a packet enters this node. It will timestamp the packet and put it in our hash table.
+ * This hook will run when a packet enters this node.
  */
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
   unsigned char* transport_data;
-  s64 time = 0;
-  unsigned int id = 1;
+  s64 in_time = 0;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -377,30 +157,32 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
 
   // We're only interested in packets that have our service port as source port.
   if((udp_header->source) == (unsigned short) htons(service_port)){ 
-    time = get_kernel_current_time();
+    in_time = get_kernel_current_time();
+    in_time = swap_time_byte_order(in_time);
+
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
+    
+    memcpy(transport_data + 8, & in_time, 8);
+    
+    udp_header->check = 0;
+    udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
+    if(!udp_header->check)
+      udp_header->check = 0xFFFF;
 
-    memcpy(&time, transport_data, sizeof(s64));
-    memcpy(&id, transport_data + sizeof(s64), sizeof(unsigned int));
-
-    //Because time is already in host byte order, conversion is not needed
-    put(& __table, ip_header->saddr, udp_header->source, ntohl(id), time);
-    return NF_ACCEPT;
+    print("MANEL Received packet in pre routing\n");
   }
   
   return NF_ACCEPT;
 }
 
 /*
- * This hook will run when a packet is ready to exit this node. Notice that this will run if packets where created in the node or if they need to be routed.
+ * This hook will run when a packet is ready to exit this node.
  */
 unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
   unsigned char* transport_data;
-  unsigned int id;
-  hash_node* n;
-  s64 total_accumulated_time, acc_time;
+  s64 acc_time, in_time;
   
   if(!skb){ 
     return NF_ACCEPT; 
@@ -419,42 +201,78 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
   if((udp_header->source) == (unsigned short) htons(service_port)){
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
-    // The first 8 bytes of the data should be the total accumulated time.
+  
     memcpy(&acc_time, transport_data, 8);
-    // Change the byte order to host byte order.
     acc_time = swap_time_byte_order(acc_time);
-    memcpy(&id, transport_data + 8, 4);
 
-    n = hash_lookup(__table, ip_header->saddr, udp_header->source, ntohl(id));
-    if(n != null){ // If packet exists in hash, then it was created by another node.
-      total_accumulated_time = acc_time + (get_kernel_current_time() - n->in_time);
-      // Here we don't need it anymore so it will be deleted from the hash table.
-      delete(& __table, n);
-    }else //packet was created in node
-      total_accumulated_time = get_kernel_current_time() - acc_time;
+    memcpy(&in_time, transport_data + 8, 8);
+    in_time = swap_time_byte_order(in_time);
 
-    // Change time to network byte order
-    total_accumulated_time = swap_time_byte_order(total_accumulated_time);
+    //from this point on acc_time will contain the total accumulated time
+    acc_time += (get_kernel_current_time() - in_time);
+    acc_time = swap_time_byte_order(acc_time);
 
-    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &total_accumulated_time, sizeof(s64));
-    // recalculate UDP checksum.
+    memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &acc_time, sizeof(s64));
+
+    udp_header->check = 0;
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
-
     if(!udp_header->check)
       udp_header->check = 0xFFFF;
 
-    return NF_ACCEPT;
+    print("MANEL Sending packet through post routing\n");
   }
   
   return NF_ACCEPT;
 }
 
-int init_module(){
-  __table = new_table();
-  //Error in kmalloc
-  if(__table == null)
-    return -1;
+unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
+  struct iphdr* ip_header;
+  struct udphdr* udp_header;
+  unsigned char* transport_data;
+  s64 in_time, acc_time = 0;
 
+  if(!skb){ 
+    return NF_ACCEPT; 
+  } 
+  if(!(skb->network_header) || !(skb->transport_header)){ 
+    return NF_ACCEPT; 
+  }
+  
+  // If packet is not UDP we don't need to check it.
+  ip_header = ip_hdr(skb);
+  if(ip_header->protocol != __udp_proto_id__){ 
+    return NF_ACCEPT;
+  }
+
+  //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
+  udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
+
+  // We're only interested in packets that have our service port as source port.
+  if((udp_header->source) == (unsigned short) htons(service_port)){
+    transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
+    
+    memcpy(&in_time, transport_data + 8, 8);
+    in_time = swap_time_byte_order(in_time);
+
+    memcpy(&acc_time, transport_data, 8);
+    acc_time = swap_time_byte_order(acc_time);
+
+    //from this point on acc_time will contain the packet's creation time
+    acc_time = in_time - acc_time;
+    acc_time = swap_time_byte_order(acc_time);
+
+    udp_header->check = 0;
+    udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
+    if(!udp_header->check)
+      udp_header->check = 0xFFFF;
+
+    print("MANEL Received packet in local in hook. Packet is for me!!!!\n");
+  }
+
+  return NF_ACCEPT;
+}
+
+int init_module(){
   nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
   nf_ip_pre_routing.pf = PF_INET;                              
   nf_ip_pre_routing.hooknum = ip_pre_routing;
@@ -466,14 +284,20 @@ int init_module(){
   nf_ip_post_routing.hooknum = ip_post_routing;
   nf_ip_post_routing.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_post_routing);
+
+  nf_ip_local_in.hook = nf_ip_local_in_hook;
+  nf_ip_local_in.pf = PF_INET;
+  nf_ip_local_in.hooknum = ip_local_in;
+  nf_ip_local_in.priority = NF_IP_PRI_FIRST;
+  nf_register_hook(& nf_ip_local_in);
+
   print("Packets are now being timestamped.\n");
   return 0;
 }
 
 void cleanup_module(){
-  if(__table != null)
-    explode_table(&__table);
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
+  nf_unregister_hook(&nf_ip_local_in);
   print("Packets are no longer being timestamped.\n");
 }

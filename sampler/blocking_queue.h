@@ -9,13 +9,13 @@
 
 typedef struct {
   /*s64*/ unsigned long long accumulated_time;
+  /*s64*/ unsigned long long in_time;
   unsigned int id;
   unsigned char samples[3];
 } packet_t;
 
 typedef struct{
   char source[22];
-  unsigned long long in_time;
   packet_t packet;
 } item;
 

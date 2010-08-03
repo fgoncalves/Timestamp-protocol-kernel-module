@@ -83,10 +83,11 @@ static void init_packet(packet_t* packet){
   unsigned long long creation_timestamp;
 
   packet->id = id;
+  packet->accumulated_time = 0;
   id++;
   clock_gettime(CLOCK_REALTIME, &ts);
   creation_timestamp = timespec_to_ns(ts);
-  memcpy(& (packet->accumulated_time), & creation_timestamp, sizeof(unsigned long long));
+  memcpy(& (packet->in_time), & creation_timestamp, sizeof(unsigned long long));
 }
 
 void send_packet(socket_list *destination_sockets){
@@ -118,8 +119,9 @@ void treat_packet(socket_list * destination_sockets){
     i = consume(receiving_queue);
     pthread_mutex_lock(& lock);
     
-    if(is_sink){;
-      write_data(i.in_time, i.packet.id, i.source);
+    if(is_sink){
+      //Remember that accumulated_time contains the packet's creation time
+      write_data(i.packet.accumulated_time, i.packet.id, i.source);
     }
 
     pthread_mutex_unlock(& lock);

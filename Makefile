@@ -1,6 +1,9 @@
 obj-m = timestamping.o
-CC = gcc
+
+KERNEL_PATH=$(shell uname -r)
+#KERNEL_PATH = 2.6.24.4-gb9e83242-dirty
+
 all:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make -C /lib/modules/$(KERNEL_PATH)/build M=$(PWD) modules
 clean:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	make -C /lib/modules/$(KERNEL_PATH)/build M=$(PWD) clean
