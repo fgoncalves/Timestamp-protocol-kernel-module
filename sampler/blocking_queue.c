@@ -21,6 +21,14 @@ void swap_packet_byte_order(packet_t* packet){
   word = htonl(word);
   memcpy(bytes + 8, &word, 4);
 
+  memcpy(&word, bytes + 12, 4);
+  word = htonl(word);
+  memcpy(bytes + 12, &word, 4);
+
+  memcpy(&word, bytes + 16, 4);
+  word = htonl(word);
+  memcpy(bytes + 16, &word, 4);
+
   packet = (packet_t*) bytes;
   //TODO: samples need conversion?
 }
