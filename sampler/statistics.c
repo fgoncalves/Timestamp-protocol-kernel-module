@@ -20,10 +20,10 @@ void init_statistics(){
     exit(EXIT_ERROR);
   }
 
-  fprintf(file_fd,"# Timestamp\t\t\tPacket ID\t\t\tSource\n");
+  fprintf(file_fd,"# Timestamp\t\t\tDelay\t\t\tPacket ID\t\t\tSource\n");
 }
 
-void write_data(unsigned long long tstamp, unsigned int id, char* source){
+void write_data(unsigned long long tstamp, unsigned long long delay, unsigned int id, char* source){
   struct timespec ts = ns_to_timespec(tstamp);
   struct tm* info;
   char buffer[80];
@@ -32,8 +32,8 @@ void write_data(unsigned long long tstamp, unsigned int id, char* source){
   info = localtime(&ts.tv_sec);
   strftime(buffer,80, "%X",info);
   milli_seconds = (unsigned long long) ts.tv_nsec / (unsigned long long) 1E6;
-  fprintf(file_fd,"%s:%llu\t\t\t%u\t\t\t%s\n",buffer,milli_seconds, id, source);
-  fprintf(file_fd,"%llu\t\t\t%u\t\t\t%s\n",tstamp, id, source);
+  fprintf(file_fd,"%s:%llu\t\t\t%llu\t\t\t%u\t\t\t%s\n",buffer,milli_seconds, delay, id, source);
+  fprintf(file_fd,"%llu\t\t\t%llu\t\t\t%u\t\t\t%s\n",tstamp,delay, id, source);
 }
 
 void close_statistics(){
