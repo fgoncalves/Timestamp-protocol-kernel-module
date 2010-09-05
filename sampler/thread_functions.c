@@ -121,7 +121,7 @@ void treat_packet(socket_list * destination_sockets){
     
     if(is_sink){
       //Remember that accumulated_time contains the packet's creation time
-      write_data(i.packet.accumulated_time, i.packet.in_time, i.packet.id, i.source);
+      write_data(i.packet.accumulated_time, i.packet.in_time, i.packet.id, i.source, i.packet.samples);
     }
 
     pthread_mutex_unlock(& lock);
