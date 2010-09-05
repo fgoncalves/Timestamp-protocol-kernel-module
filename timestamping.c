@@ -169,8 +169,6 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
     if(!udp_header->check)
       udp_header->check = 0xFFFF;
-
-    print("MANEL Received packet in pre routing\n");
   }
   
   return NF_ACCEPT;
@@ -261,7 +259,6 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     in_time = swap_time_byte_order(in_time);
 
     memcpy(&acc_time, transport_data, 8);
-    print("MANELA packet %u acc = %llu\n", *(unsigned int *) (transport_data + 16), acc_time);
     //from this point the second field is used to store the delay time
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr) + 8, &acc_time, 8);
     acc_time = swap_time_byte_order(acc_time);
@@ -276,8 +273,6 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
     if(!udp_header->check)
       udp_header->check = 0xFFFF;
-
-    print("MANEL Received packet in local in hook. Packet is for me!!!!\n");
   }
 
   return NF_ACCEPT;

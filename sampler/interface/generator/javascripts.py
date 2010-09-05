@@ -1,7 +1,10 @@
 def new_line_graph(title, legend, data):
-    script = "jQuery('<img>').attr('src', api.make({\n\tdata: "
-    script += str(data) + ",\n"
-    script += "\ttype: 'lc',\n\ttitle: " + title + ",\n\tlegend: ['" + legend + "']}))"
+    script = "jQuery('<img>').attr('src', api.make({\n\tdata: ["
+    if len(data) > 0:
+        script += str(data[0])
+        for i in data[1:]:
+            script += ", " + str(i)
+    script += "],\n\ttype: 'lc',\n\ttitle: '" + title + "',\n\tlegend: ['" + legend + "']}))"
     return script
 
 def new_packet_delay_graph(slot):
