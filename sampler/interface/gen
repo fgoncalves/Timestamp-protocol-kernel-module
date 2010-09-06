@@ -1,0 +1,5 @@
+#!/bin/bash
+
+wget $1/$2
+python generator $2
+firefox results.html &
