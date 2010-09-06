@@ -4,7 +4,7 @@ def new_line_graph(title, legend, data):
         script += str(data[0])
         for i in data[1:]:
             script += ", " + str(i)
-    script += "],\n\ttype: 'lc',\n\ttitle: '" + title + "',\n\tlegend: ['" + legend + "']}))"
+    script += "],\n\tsize: '800x250',\n\ttype: 'lc',\n\ttitle: '" + title + "',\n\tlegend: ['" + legend + "']}))"
     return script
 
 def new_packet_delay_graph(slot):
@@ -16,7 +16,7 @@ def new_packet_delay_variation_graph(slot):
     return script
 
 def new_packet_data_graph(slot):
-    script = new_line_graph("Collected Data", 'Data collected by node ' + slot.source, slot.packet_delay_data) + '.prependTo("#' + slot.source.replace('.', '_') + '-packet-data");'
+    script = new_line_graph("Collected Data", 'Data collected by node ' + slot.source, slot.packet_data) + '.prependTo("#' + slot.source.replace('.', '_') + '-packet-data");'
     return script
 
 def new_slot_script(slot):
