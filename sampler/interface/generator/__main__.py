@@ -16,12 +16,10 @@ if __name__ == '__main__':
                     try:
                         sl = slots[parsed['source']]
                         sl.packet_delay_data.append(parsed['timestamp'])
-                        sl.packet_delay_variation_data.append(parsed['delay'])
                         sl.packet_data.append(parsed['data'])
                     except KeyError:
                         sl = Slot(parsed['source'])
                         sl.packet_delay_data.append(parsed['timestamp'])
-                        sl.packet_delay_variation_data.append(parsed['delay'])
                         sl.packet_data.append(parsed['data'])
                         slots[parsed['source']] = sl
             html_out = open('results.html', 'w')

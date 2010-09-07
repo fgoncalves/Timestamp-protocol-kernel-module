@@ -9,16 +9,13 @@ def new_html_description_div(slot, name_of_description, description):
 def new_html_packet_delay_div(slot):
     return xml.element('div', new_html_description_div(slot, 'packet-delay', "This graph represents the instant in which each packet arrived.<br /><br />On the X axis we have the number of each packet. On the Y axis the instant at which each packet arrived, that is the number of milliseconds that have elapsed since the first packet was created.<br /><br />In perfect conditions, one should expect a linear growth described by this graph, which would mean that the delay of each packet is 0. However sometimes a small tolerable delay can occur."), id_ = slot.source.replace('.','_') + '-packet-delay')
 
-def new_html_packet_delay_variation_div(slot):
-    return xml.element('div', new_html_description_div(slot, 'packet-delay-variation', "This graph represents the variation of the delay suffered by each packet. It can be thought as the first derevative of the function plotted in the graph which describes the packet delay.<br /><br />In perfect conditions one should expect a constant function, which would mean that there is no delay at all. However like in the second case, sometimes there may be a small tolerable delay."), id_ = slot.source.replace('.','_') + '-packet-delay-variation')
-
 def new_html_packet_data_div(slot):
     return xml.element('div', new_html_description_div(slot, 'packet-data', "This graph represents the data collected by node " + slot.source), id_ = slot.source.replace('.','_') + '-packet-data')
 
 def new_html_slot(slot):
     html_id = slot.source.replace('.','_')
     html = xml.element('h2', slot.source) + "\n"
-    html += xml.element('div', "\n" + new_html_packet_data_div(slot) + "\n" + new_html_packet_delay_div(slot) + "\n" + new_html_packet_delay_variation_div(slot) + "\n", id_ = slot.source.replace('.', '_') + '-graphs', class_ = 'slot_graphs')
+    html += xml.element('div', "\n" + new_html_packet_data_div(slot) + "\n" + new_html_packet_delay_div(slot) + "\n", id_ = slot.source.replace('.', '_') + '-graphs', class_ = 'slot_graphs')
     return xml.element('div', html, id_ = slot.source.replace('.', '_'), class_ = 'slot')
 
 def include_scripts(*slot_list):
