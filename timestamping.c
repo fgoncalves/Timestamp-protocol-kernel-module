@@ -153,7 +153,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     return NF_ACCEPT;
   }
 
-  //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
+  //  because there is a bug in the current kernel we can't simply do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   // We're only interested in packets that have our service port as source port.
@@ -210,10 +210,10 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     //from this point on acc_time will contain the total accumulated time
     kt = get_kernel_current_time();
     acc_time += (kt - in_time);
-    print("KERNEL time: %lld, in time %lld\n", kt, in_time);
-    print("JAKIM packet %d acc = %lld\n", *(unsigned int *) (transport_data + 16), acc_time);
-    if(acc_time < 0) 
+    if(acc_time < 0) {
+      print("Negative acc\n");
       acc_time = 0;
+    }
 
     acc_time = swap_time_byte_order(acc_time);
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &acc_time, 8);
@@ -222,8 +222,6 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
     if(!udp_header->check)
       udp_header->check = 0xFFFF;
-
-    print("MANEL Sending packet through post routing\n");
   }
   
   return NF_ACCEPT;
