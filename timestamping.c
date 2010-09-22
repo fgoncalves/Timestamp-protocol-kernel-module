@@ -204,6 +204,8 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     memcpy(&acc_time, transport_data, 8);
     acc_time = swap_time_byte_order(acc_time);
 
+    print("%s:%d: post routing hook read accumulated time %lld\n", __FILE__, __LINE__, acc_time);
+
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
 
