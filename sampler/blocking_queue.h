@@ -6,10 +6,11 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include "timestamp.h"
 
 typedef struct {
-  /*s64*/ unsigned long long accumulated_time;
-  /*s64*/ unsigned long long in_time;
+  s64 accumulated_time;
+  s64 in_time;
   unsigned int id;
   unsigned char samples[3];
 } packet_t;

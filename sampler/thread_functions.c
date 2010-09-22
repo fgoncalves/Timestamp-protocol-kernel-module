@@ -80,14 +80,14 @@ static void send_to_all(packet_t Item, socket_list *destination_sockets){
 static void init_packet(packet_t* packet){
   static unsigned int id = 0;
   struct timespec ts;
-  unsigned long long creation_timestamp;
+  s64 creation_timestamp;
 
   packet->id = id;
   packet->accumulated_time = 0;
   id++;
   clock_gettime(CLOCK_REALTIME, &ts);
   creation_timestamp = timespec_to_ns(ts);
-  memcpy(& (packet->in_time), & creation_timestamp, sizeof(unsigned long long));
+  memcpy(& (packet->in_time), & creation_timestamp, sizeof(s64));
 }
 
 void send_packet(socket_list *destination_sockets){

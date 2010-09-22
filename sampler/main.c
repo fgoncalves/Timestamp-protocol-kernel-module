@@ -243,6 +243,7 @@ int main(int argc, char** argv){
   }
 
   init_all(server_fd);
+
   serve(server_fd);
   return 0;
 }

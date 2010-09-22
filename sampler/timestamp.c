@@ -2,14 +2,14 @@
 
 #define nsec_per_sec    1000000000L
 
-static unsigned long div_ulong_rem(unsigned long long dividend, unsigned int divisor, unsigned int *remainder){
+static long div_ulong_rem(s64 dividend, int divisor, int *remainder){
   *remainder = dividend % divisor;
   return dividend / divisor;
 }
 
-struct timespec ns_to_timespec(unsigned long long nsec){
+struct timespec ns_to_timespec(s64 nsec){
   struct timespec ts;
-  unsigned int rem;
+  int rem;
   
   if (!nsec)
     return (struct timespec) {0, 0};
@@ -20,6 +20,6 @@ struct timespec ns_to_timespec(unsigned long long nsec){
   return ts;
 }
 
-unsigned long long timespec_to_ns(const struct timespec ts){
-  return ((unsigned long long) ts.tv_sec * (unsigned long long) nsec_per_sec) + (unsigned long long) ts.tv_nsec;
+s64 timespec_to_ns(const struct timespec ts){
+  return ((s64) ts.tv_sec * (s64) nsec_per_sec) + (s64) ts.tv_nsec;
 }
