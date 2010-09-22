@@ -20,7 +20,6 @@
 #include <linux/netfilter_ipv4.h> 
 #include <linux/skbuff.h> 
 #include <linux/udp.h>
-#include <linux/time.h>
 
 #define alloc(TSIZE,TYPE)\
   (TYPE*) kmalloc(TSIZE * sizeof(TYPE), GFP_KERNEL);
@@ -159,6 +158,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   // We're only interested in packets that have our service port as source port.
   if((udp_header->source) == (unsigned short) htons(service_port)){ 
     in_time = get_kernel_current_time();
+    print("%s:%d: pre routing hook took timestamp %lld\n", __FILE__, __LINE__, in_time);
     in_time = swap_time_byte_order(in_time);
 
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
@@ -207,11 +207,13 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
 
+    print("%s:%d: post routing hook read timestamp %lld\n", __FILE__, __LINE__, in_time);
+
     //from this point on acc_time will contain the total accumulated time
     kt = get_kernel_current_time();
+    print("%s:%d: post routing hook took timestamp %lld\n", __FILE__, __LINE__, kt);
     acc_time += (kt - in_time);
     if(acc_time < 0) {
-      print("Negative acc\n");
       acc_time = 0;
     }
 
@@ -256,6 +258,8 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
 
+    print("%s:%d: local routing hook read timestamp %lld\n", __FILE__, __LINE__, in_time);
+
     memcpy(&acc_time, transport_data, 8);
     //from this point the second field is used to store the delay time
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr) + 8, &acc_time, 8);
@@ -272,7 +276,7 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     if(!udp_header->check)
       udp_header->check = 0xFFFF;
   }
-
+  
   return NF_ACCEPT;
 }
 
