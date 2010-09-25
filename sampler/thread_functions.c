@@ -79,15 +79,24 @@ static void send_to_all(packet_t Item, socket_list *destination_sockets){
 
 static void init_packet(packet_t* packet){
   static unsigned int id = 0;
+  static s64 time = 0;
   struct timespec ts;
   s64 creation_timestamp;
 
   packet->id = id;
   packet->accumulated_time = 0;
+
+  if( ! time){
+    clock_gettime(CLOCK_REALTIME, &ts);
+    creation_timestamp = timespec_to_ns(ts);
+    time = timespec_to_ns(ts);
+    memcpy(& (packet->in_time), & creation_timestamp, sizeof(s64));
+  }else{
+    time += (1000000000 / samples_per_second);
+    memcpy(& (packet->in_time), & time, sizeof(s64));
+  }
+  printf("%lld\n", packet->in_time);
   id++;
-  clock_gettime(CLOCK_REALTIME, &ts);
-  creation_timestamp = timespec_to_ns(ts);
-  memcpy(& (packet->in_time), & creation_timestamp, sizeof(s64));
 }
 
 void send_packet(socket_list *destination_sockets){
@@ -105,7 +114,8 @@ void send_packet(socket_list *destination_sockets){
 
     send_to_all(anything, destination_sockets);
     npackets--;
-    usleep(usleep_time);
+
+    usleep(usleep_time * 2);    //DO NOT REMOVE THIS!!!!
   }
 
   printf("All generated packets were sent.\n");
