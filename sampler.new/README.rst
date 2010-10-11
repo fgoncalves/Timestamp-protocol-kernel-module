@@ -54,9 +54,9 @@ First we need to start the sink node:
 
 Then we need to start the collector node:
 
-|./sampler 192.168.0.1
-|100
-|192.168.0.1:57843
+| ./sampler 192.168.0.1
+| 100
+| 192.168.0.1:57843
 
 Makefile
 ========
