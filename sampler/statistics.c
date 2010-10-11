@@ -12,7 +12,7 @@ char file[50] = {0};
 FILE* file_fd;
 
 void init_statistics(){
-  sprintf(file, "ostatistics-%u.out",getpid());
+  sprintf(file, "ostatistics.out");
 
   file_fd = fopen(file, "w");
 
