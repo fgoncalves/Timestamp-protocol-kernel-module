@@ -1,6 +1,6 @@
 Requirements
 ============
-This program only works with more than 2 nodes, if there is a routing protocol like B.A.T.M.A.N. working in the background.
+This program only works with more than 2 nodes if there is a routing protocol like B.A.T.M.A.N. working in the background.
 
 Also, timestamps will only be correct if the timestamping module is inserted in the kernel. If not, the program will run without problems, but times will make no sense.
 
@@ -16,6 +16,7 @@ How to run it
   
    Then you need to enter the number of packets to collect and the sink ip and port. For example:
 
+::
    ./sampler 127.0.0.1
    1000
    127.0.0.1:6666
