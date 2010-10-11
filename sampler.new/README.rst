@@ -14,9 +14,8 @@ How to run it
 
 ./sampler <ip-address>
   
-   Then you need to enter the number of packets to collect and the sink ip and port. For example:
-
-
+|   Then you need to enter the number of packets to collect and the sink ip and port. For example:
+|
 |   ./sampler 127.0.0.1
 |   1000
 |   127.0.0.1:6666
@@ -55,9 +54,9 @@ First we need to start the sink node:
 
 Then we need to start the collector node:
 
-./sampler 192.168.0.1
-100
-192.168.0.1:57843
+|./sampler 192.168.0.1
+|100
+|192.168.0.1:57843
 
 Makefile
 ========
