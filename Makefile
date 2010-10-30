@@ -1,4 +1,5 @@
-obj-m = timestamping.o
+obj-m += timestamp.o
+timestamp-objs := rtt_thread.o hooks.o utilities.o
 
 KERNEL_PATH=$(shell uname -r)
 #KERNEL_PATH = 2.6.24.4-gb9e83242-dirty

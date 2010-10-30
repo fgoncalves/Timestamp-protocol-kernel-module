@@ -13,23 +13,15 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/vmalloc.h>
 #include <linux/ip.h> 
 #include <linux/netdevice.h> 
 #include <linux/netfilter.h> 
 #include <linux/netfilter_ipv4.h> 
 #include <linux/skbuff.h> 
 #include <linux/udp.h>
-
-#define alloc(TSIZE,TYPE)\
-  (TYPE*) kmalloc(TSIZE * sizeof(TYPE), GFP_KERNEL);
-
-#define dealloc(PTR)\
-  kfree(PTR)
-
-#define print printk
-
-#define null NULL
+#include <linux/kthread.h>
+#include "rtt_thread.h"
+#include "utilities.h"
 
 #define __udp_proto_id__ 17
 
@@ -54,6 +46,8 @@
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
 static struct nf_hook_ops nf_ip_local_in;
+
+struct task_struct *rtt_task;
 
 //This is the service port that the user level program must bind to
 unsigned short service_port = 57843;
@@ -101,33 +95,6 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
   dealloc(padded_data);
   
   return (__be16) ~sum;
-}
-
-/*
- * Obtain a 64 bit value representing the nanoseconds since the Epoch.
- */
-s64 get_kernel_current_time(void){
-  struct timespec t = CURRENT_TIME;
-  return timespec_to_ns(&t);
-}
-
-/*
- * This function is used to convert network byte order to host byte order and vice versa,
- * of a 64 bit variable.
- */
-s64 swap_time_byte_order(s64 time){
-  unsigned char* bytes = (unsigned char*) &time;
-  uint32_t word;
-
-  memcpy(&word, bytes, sizeof(uint32_t));
-  word = htonl(word);
-  memcpy(bytes, &word, sizeof(uint32_t));
-  
-  memcpy(&word, bytes + sizeof(uint32_t), sizeof(uint32_t));
-  word = htonl(word);
-  memcpy(bytes + sizeof(uint32_t), &word, sizeof(uint32_t));
-  
-  return * ((s64 *) bytes);
 }
 
 /*
@@ -301,7 +268,10 @@ int init_module(){
   nf_ip_local_in.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_in);
 
+  rtt_task = kthread_run(send, NULL, "rtt-thread");
+
   print("Packets are now being timestamped.\n");
+  print("Sink node ip: %s\n", sink_ip);
   return 0;
 }
 
@@ -309,5 +279,9 @@ void cleanup_module(){
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_in);
+  kthread_stop(rtt_task);
   print("Packets are no longer being timestamped.\n");
 }
+
+
+MODULE_LICENSE("GPL v2");
