@@ -101,10 +101,11 @@ void dump_packet(char* pack, int offset, int size){
 
 int send(void* data){
   struct socket* sock = set_up_icmp_socket();
-  int length = sizeof(struct iphdr) + sizeof(struct icmphdr);
+  int length = sizeof(struct iphdr) + sizeof(struct icmphdr) + 8; //8 bytes for timestamp
   char packet[length];
   struct iphdr* ip = (struct iphdr*) packet;
   struct icmphdr* icmp = (struct icmphdr*) (packet + sizeof(struct iphdr));
+  s64 *timestamp = (s64*) (packet + sizeof(struct iphdr) + sizeof(struct icmphdr));
   char __user one = 1;
   char __user *val = &one; //ok... I copied this from a site. Hope it works
 
@@ -120,19 +121,14 @@ int send(void* data){
   ip->tot_len = length;
   ip->id = 0;
   ip->frag_off = 0;
-  ip->ttl = 0;
+  ip->ttl = 1;
   ip->protocol = IPPROTO_ICMP;
-  ip->check = 0;
   ip->saddr = in_aton(src_ip);
   ip->daddr = in_aton(sink_ip);
 
   icmp->type = ICMP_ECHO;
   icmp->code = 0;
-  icmp->checksum = 0;
   icmp->un.echo.id = 0;
-  icmp->checksum = csum((unsigned short*)(packet + sizeof(struct iphdr)), 4);
-  
-  ip->check = csum((unsigned short *) packet, ip->tot_len >> 1);
 
   if(sock->ops->setsockopt(sock, IPPROTO_IP, IP_HDRINCL, val, sizeof (int)) < 0){
     print("%s:%d: Cannot set IP_HDRINCL. Stoping rtt thread.\n", __FILE__, __LINE__);
@@ -140,6 +136,15 @@ int send(void* data){
   }
 
   while(1){
+    ip->check = 0;
+    icmp->checksum = 0;
+    
+    *timestamp = swap_time_byte_order(get_kernel_current_time());
+
+    icmp->checksum = csum((unsigned short*)(packet + sizeof(struct iphdr)), 8);
+  
+    ip->check = csum((unsigned short *) packet, ip->tot_len >> 1);
+
     send_bytes(sock, packet, length);
     msleep(rtt_it);
     if (kthread_should_stop())
