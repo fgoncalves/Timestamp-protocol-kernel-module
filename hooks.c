@@ -50,7 +50,9 @@ static struct nf_hook_ops nf_ip_local_in;
 struct task_struct *rtt_task;
 
 //This is the service port that the user level program must bind to
-unsigned short service_port = 57843;
+static unsigned short service_port = 57843;
+module_param(service_port, ushort, 0000);
+MODULE_PARM_DESC(service_port, "Destination port. Default 57843");
 
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
@@ -123,7 +125,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   // We're only interested in packets that have our service port as source port.
-  if((udp_header->source) == (unsigned short) htons(service_port)){ 
+  if((udp_header->dest) == (unsigned short) htons(service_port)){ 
     in_time = get_kernel_current_time();
     print("%s:%d: pre routing hook took timestamp %lld\n", __FILE__, __LINE__, in_time);
     in_time = swap_time_byte_order(in_time);
@@ -165,7 +167,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
-  if((udp_header->source) == (unsigned short) htons(service_port)){
+  if((udp_header->dest) == (unsigned short) htons(service_port)){
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
   
     memcpy(&acc_time, transport_data, 8);
@@ -221,7 +223,7 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   // We're only interested in packets that have our service port as source port.
-  if((udp_header->source) == (unsigned short) htons(service_port)){
+  if((udp_header->dest) == (unsigned short) htons(service_port)){
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     
     memcpy(&in_time, transport_data + 8, 8);
@@ -271,7 +273,6 @@ int init_module(){
   rtt_task = kthread_run(send, NULL, "rtt-thread");
 
   print("Packets are now being timestamped.\n");
-  print("Sink node ip: %s\n", sink_ip);
   return 0;
 }
 
