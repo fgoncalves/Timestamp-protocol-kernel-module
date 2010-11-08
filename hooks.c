@@ -7,13 +7,10 @@
 #define __MODULE__
 #endif
 
-#ifndef CONFIG_NETFILTER
-#define CONFIG_NETFILTER
-#endif
-
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/ip.h> 
+#include <linux/icmp.h>
 #include <linux/netdevice.h> 
 #include <linux/netfilter.h> 
 #include <linux/netfilter_ipv4.h> 
@@ -173,16 +170,11 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     memcpy(&acc_time, transport_data, 8);
     acc_time = swap_time_byte_order(acc_time);
 
-    print("%s:%d: post routing hook read accumulated time %lld\n", __FILE__, __LINE__, acc_time);
-
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
 
-    print("%s:%d: post routing hook read timestamp %lld\n", __FILE__, __LINE__, in_time);
-
     //from this point on acc_time will contain the total accumulated time
     kt = get_kernel_current_time();
-    print("%s:%d: post routing hook took timestamp %lld\n", __FILE__, __LINE__, kt);
     acc_time += (kt - in_time);
     if(acc_time < 0) {
       acc_time = 0;
@@ -200,6 +192,59 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   return NF_ACCEPT;
 }
 
+void compute_rtt(s64 new_timestamp){
+  //Just printing some values. I'm not doing the mean or standard deviation
+
+  s64 rtt = get_kernel_current_time() - new_timestamp;
+
+  print("New rtt received %lld\n", rtt);
+}
+
+void handle_icmp(struct sk_buff *skb){
+  struct iphdr* iph = ip_hdr(skb);
+  struct icmphdr* icmph = (struct icmphdr*)(skb->data+(iph->ihl << 2));
+  //|iph|icmph|iph|icmp|sent data ->icmp ttl exceeded
+  //|iph|icmp|sent data ->icmp reply
+
+  //check if it is an echo reply
+  if(icmph->type == ICMP_ECHOREPLY){
+    //ok maybe it's the reply from sink
+    //lets check if we have 16 bytes of data
+
+    if(ntohs(iph->tot_len) - sizeof(struct iphdr) - sizeof(struct icmphdr) == 16){
+      //then grab the id and check its value
+      s64 id = *((s64*) (skb->data + sizeof(struct iphdr) + sizeof(struct icmphdr)));
+      if(swap_time_byte_order(id) != 0x00000000beefcafe)
+	return;
+
+      //grab the timestamp sent and compute rtt
+      compute_rtt(swap_time_byte_order(*((s64*) (skb->data + sizeof(struct iphdr) + sizeof(struct icmphdr) + 8))));
+    }
+  }
+
+  //check if ttl exceeded
+  if(icmph->type == ICMP_TIME_EXCEEDED && icmph->code == ICMP_EXC_TTL){
+    //lets get the encapsulated ip packet
+    struct iphdr* enc_iph= (struct iphdr*) (skb->data + sizeof(struct iphdr) + sizeof(struct icmphdr));
+
+    //is it an icmp echo request?
+    if(enc_iph->protocol == IPPROTO_ICMP){
+      struct icmphdr* enc_icmph = (struct icmphdr*) (skb->data + (sizeof(struct iphdr) << 1) + sizeof(struct icmphdr));
+
+      if(enc_icmph->type == ICMP_ECHO && ntohs(enc_iph->tot_len) - sizeof(struct iphdr) - sizeof(struct icmphdr) >= 16){
+	//then grab the id and check its value
+	s64 id = *((s64*) (skb->data + (sizeof(struct iphdr) << 1) + (sizeof(struct icmphdr) << 1)));
+	if(swap_time_byte_order(id) != 0x00000000beefcafe)
+	  return;
+
+	//grab the timestamp sent and compute rtt
+	compute_rtt(swap_time_byte_order(*((s64*) (skb->data + (sizeof(struct iphdr) << 1) + (sizeof(struct icmphdr) << 1) + 8))));
+      }
+    }
+  }
+  return;
+}
+
 unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
   struct iphdr* ip_header;
   struct udphdr* udp_header;
@@ -213,8 +258,12 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     return NF_ACCEPT; 
   }
   
-  // If packet is not UDP we don't need to check it.
   ip_header = ip_hdr(skb);
+  if(ip_header->protocol == IPPROTO_ICMP){
+    handle_icmp(skb);
+    return NF_ACCEPT;
+  }
+
   if(ip_header->protocol != __udp_proto_id__){ 
     return NF_ACCEPT;
   }
@@ -228,8 +277,6 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
-
-    print("%s:%d: local routing hook read timestamp %lld\n", __FILE__, __LINE__, in_time);
 
     memcpy(&acc_time, transport_data, 8);
     //from this point the second field is used to store the delay time

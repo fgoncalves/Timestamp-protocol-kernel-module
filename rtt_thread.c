@@ -31,7 +31,7 @@ MODULE_PARM_DESC(src_ip, "Source ip");
 module_param(rtt_it, int, 0000);
 MODULE_PARM_DESC(rtt_it, "The rtt sending interval in milliseconds.");
 
-struct socket * set_up_icmp_socket(void) {
+struct socket * setup_icmp_socket(void) {
   struct socket * icmp_sock;
   struct sockaddr_in sin;
   int error;
@@ -100,12 +100,13 @@ void dump_packet(char* pack, int offset, int size){
 }
 
 int send(void* data){
-  struct socket* sock = set_up_icmp_socket();
-  int length = sizeof(struct iphdr) + sizeof(struct icmphdr) + 8; //8 bytes for timestamp
+  struct socket* sock = setup_icmp_socket();
+  int length = sizeof(struct iphdr) + sizeof(struct icmphdr) + 16; //8 bytes for timestamp and 8 bytes for id
   char packet[length];
   struct iphdr* ip = (struct iphdr*) packet;
   struct icmphdr* icmp = (struct icmphdr*) (packet + sizeof(struct iphdr));
-  s64 *timestamp = (s64*) (packet + sizeof(struct iphdr) + sizeof(struct icmphdr));
+  s64 *id = (s64*) (packet + sizeof(struct iphdr) + sizeof(struct icmphdr));
+  s64 *timestamp = (s64*) (packet + sizeof(struct iphdr) + sizeof(struct icmphdr) + 8);
   char __user one = 1;
   char __user *val = &one; //ok... I copied this from a site. Hope it works
 
@@ -114,6 +115,9 @@ int send(void* data){
 
   if(!sock)
     return -1;
+
+  //swap_time_byte_order swaps the order of a 8 byte word, so I can use it here.
+  *id = swap_time_byte_order(0x00000000beefcafe);
 
   ip->ihl = 5; 
   ip->version = 4;
@@ -141,7 +145,7 @@ int send(void* data){
     
     *timestamp = swap_time_byte_order(get_kernel_current_time());
 
-    icmp->checksum = csum((unsigned short*)(packet + sizeof(struct iphdr)), 8);
+    icmp->checksum = csum((unsigned short*)(packet + sizeof(struct iphdr)), 12);
   
     ip->check = csum((unsigned short *) packet, ip->tot_len >> 1);
 
