@@ -51,6 +51,10 @@ static unsigned short service_port = 57843;
 module_param(service_port, ushort, 0000);
 MODULE_PARM_DESC(service_port, "Destination port. Default 57843");
 
+static int is_sink = 0;
+module_param(is_sink, int, 0000);
+MODULE_PARM_DESC(is_sink, "Set this to 1 if the node is a sink node. Default is 0.\n\t\t\tIf this is set to 0 in a sink node, a kthread will be created and the sink will try to measure rtt's sent to itself.");
+
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
  *
@@ -317,7 +321,8 @@ int init_module(){
   nf_ip_local_in.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_in);
 
-  rtt_task = kthread_run(send, NULL, "rtt-thread");
+  if(!is_sink)
+    rtt_task = kthread_run(send, NULL, "rtt-thread");
 
   print("Packets are now being timestamped.\n");
   return 0;
@@ -327,7 +332,8 @@ void cleanup_module(){
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_in);
-  kthread_stop(rtt_task);
+  if(!is_sink)
+    kthread_stop(rtt_task);
   print("Packets are no longer being timestamped.\n");
 }
 
