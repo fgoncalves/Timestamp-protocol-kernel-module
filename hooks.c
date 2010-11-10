@@ -55,6 +55,41 @@ static int is_sink = 0;
 module_param(is_sink, int, 0000);
 MODULE_PARM_DESC(is_sink, "Set this to 1 if the node is a sink node. Default is 0.\n\t\t\tIf this is set to 0 in a sink node, a kthread will be created and the sink will try to measure rtt's sent to itself.");
 
+static uint buff_size = 10;
+module_param(buff_size, uint, 0000);
+MODULE_PARM_DESC(buff_size, "Specifffy the size of the rtts buffer. Default is 10.");
+
+#define INFINITY 0xFFFFFFFFFFFFFFFF
+
+uint64_t* buff, *current, *end;
+
+int init_rtts_buffer(void){
+  buff = alloc(buff_size, uint);
+
+  if(buff == NULL){
+    print("Failed to alloc buffer.\n");
+    return 1;
+  }
+
+  memset(buff, INFINITY, buff_size * sizeof(uint64_t));
+
+  current = buff;
+  end = buff + buff_size;
+  return 0;
+}
+
+int store_rtt(uint64_t rtt){
+  *current = rtt;
+
+  if(current == end){
+    current = buff;
+    return 0;
+  }
+
+  current++;
+  return 0;
+}
+
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
  *
@@ -321,8 +356,13 @@ int init_module(){
   nf_ip_local_in.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_in);
 
-  if(!is_sink)
+  if(!is_sink){
+    if(init_rtts_buffer()){
+      cleanup_module();
+      return 0;
+    }
     rtt_task = kthread_run(send, NULL, "rtt-thread");
+  }
 
   print("Packets are now being timestamped.\n");
   return 0;
