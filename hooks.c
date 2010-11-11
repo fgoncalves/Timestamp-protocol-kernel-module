@@ -43,7 +43,8 @@
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
 static struct nf_hook_ops nf_ip_local_in;
-
+static uint64_t *buff;
+static uint curr;
 struct task_struct *rtt_task;
 
 //This is the service port that the user level program must bind to
@@ -59,36 +60,55 @@ static uint buff_size = 10;
 module_param(buff_size, uint, 0000);
 MODULE_PARM_DESC(buff_size, "Specifffy the size of the rtts buffer. Default is 10.");
 
-#define INFINITY 0xFFFFFFFFFFFFFFFF
-
-uint64_t* buff, *current, *end;
-
 int init_rtts_buffer(void){
-  buff = alloc(buff_size, uint);
+  buff = alloc(buff_size, uint64_t);
 
   if(buff == NULL){
     print("Failed to alloc buffer.\n");
     return 1;
   }
 
-  memset(buff, INFINITY, buff_size * sizeof(uint64_t));
+  memset(buff, 0, buff_size * sizeof(uint64_t));
 
-  current = buff;
-  end = buff + buff_size;
+  curr = 0;
   return 0;
 }
 
-int store_rtt(uint64_t rtt){
-  *current = rtt;
+void store_rtt(uint64_t rtt){
+  buff[curr] = rtt;
 
-  if(current == end){
-    current = buff;
-    return 0;
+  if(curr == buff_size){
+    curr = 0;
+    return;
   }
 
-  current++;
-  return 0;
+  curr++;
+  return;
 }
+
+/*These functions should take less time than rtt_it*/
+uint64_t get_rtt_average(void){
+  int i;
+  uint64_t sum = 0;
+  for(i = 0; i < buff_size; i++)
+    sum += buff[i];
+  //do_div stores the result in the first argument. It is needed because the kernel does not implement long long divisions.
+  do_div(sum , buff_size);
+  return sum;
+}
+
+int64_t get_rtt_variance(void){
+  uint64_t avg = get_rtt_average();
+  int64_t sum = 0;
+  int i;
+  for(i = 0; i < buff_size; i++)
+    sum += ((buff[i] - avg) * (buff[i] - avg));
+  //do_div stores the result in the first argument. It is needed because the kernel does not implement long long divisions.
+  do_div(sum , buff_size);
+  return sum;
+}
+/*=============================================================*/
+
 
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
@@ -157,13 +177,13 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     return NF_ACCEPT;
   }
 
-  //  because there is a bug in the current kernel we can't simply do "udp_header = udp_hdr(skb);". Instead we have to do:
+  //  because there is a bug in the curr kernel we can't simply do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   // We're only interested in packets that have our service port as source port.
   if((udp_header->dest) == (unsigned short) htons(service_port)){ 
     in_time = get_kernel_current_time();
-    print("%s:%d: pre routing hook took timestamp %lld\n", __FILE__, __LINE__, in_time);
+
     in_time = swap_time_byte_order(in_time);
 
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
@@ -200,7 +220,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     return NF_ACCEPT;
   }
 
-  //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
+  //  because there is a bug in the curr kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   if((udp_header->dest) == (unsigned short) htons(service_port)){
@@ -236,7 +256,15 @@ void compute_rtt(s64 new_timestamp){
 
   s64 rtt = get_kernel_current_time() - new_timestamp;
 
-  print("New rtt received %lld\n", rtt);
+  store_rtt((uint64_t) rtt);
+}
+
+void dump_buffer(void){
+  int i;
+  for(i =0 ; i < buff_size; i++)
+    print("[%d] %llu\n", i, buff[i]);
+  print("Average: %llu ns\n", get_rtt_average());
+  print("Variance: %lld ns\n", get_rtt_variance());
 }
 
 void handle_icmp(struct sk_buff *skb){
@@ -307,11 +335,14 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     return NF_ACCEPT;
   }
 
-  //  because there is a bug in the current kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
+  //  because there is a bug in the curr kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
   // We're only interested in packets that have our service port as source port.
   if((udp_header->dest) == (unsigned short) htons(service_port)){
+
+    dump_buffer();
+
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     
     memcpy(&in_time, transport_data + 8, 8);
