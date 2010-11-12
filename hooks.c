@@ -196,7 +196,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     avg_rtt = swap_time_byte_order(avg_rtt);
     var_rtt = swap_time_byte_order(var_rtt);
 
-    print("Pre routing received a packet with avg rtt %llu and variance %llu\n", avg_rtt, var_rtt);
+    print("%d: Pre routing received a packet with avg rtt %llu and variance %llu\n", __LINE__, avg_rtt, var_rtt);
     
     udp_header->check = 0;
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
@@ -241,18 +241,23 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
 
+    //cpy received avg_rtt
+    memcpy(&avg_rtt, transport_data + 16, 8);
+    avg_rtt = swap_time_byte_order(avg_rtt);
+
+    //from this point on acc_time will contain the total accumulated time
+    kt = get_kernel_current_time();
+    acc_time += (kt - in_time) + avg_rtt;
+    print("%d: Post routing adde an average rtt of %llu ns\n", __LINE__, avg_rtt);
+    if(acc_time < 0) {
+      acc_time = 0;
+    }
+
     avg_rtt = swap_time_byte_order(get_rtt_average());
     var_rtt = swap_time_byte_order(get_rtt_variance());
 
     memcpy(transport_data + 16, &avg_rtt, 8);
     memcpy(transport_data + 24, &var_rtt, 8);
-
-    //from this point on acc_time will contain the total accumulated time
-    kt = get_kernel_current_time();
-    acc_time += (kt - in_time);
-    if(acc_time < 0) {
-      acc_time = 0;
-    }
 
     acc_time = swap_time_byte_order(acc_time);
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &acc_time, 8);
