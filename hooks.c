@@ -97,9 +97,9 @@ uint64_t get_rtt_average(void){
   return sum;
 }
 
-int64_t get_rtt_variance(void){
+uint64_t get_rtt_variance(void){
   uint64_t avg = get_rtt_average();
-  int64_t sum = 0;
+  uint64_t sum = 0;
   int i;
   for(i = 0; i < buff_size; i++)
     sum += ((buff[i] - avg) * (buff[i] - avg));
@@ -163,6 +163,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 in_time = 0;
+  uint64_t avg_rtt, var_rtt;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -189,6 +190,13 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     
     memcpy(transport_data + 8, & in_time, 8);
+
+    memcpy(&avg_rtt, transport_data + 16, 8);
+    memcpy(&var_rtt, transport_data + 24, 8);
+    avg_rtt = swap_time_byte_order(avg_rtt);
+    var_rtt = swap_time_byte_order(var_rtt);
+
+    print("Pre routing received a packet with avg rtt %llu and variance %llu\n", avg_rtt, var_rtt);
     
     udp_header->check = 0;
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
@@ -207,6 +215,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 acc_time, in_time, kt;
+  uint64_t avg_rtt, var_rtt;
   
   if(!skb){ 
     return NF_ACCEPT; 
@@ -231,6 +240,12 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
     memcpy(&in_time, transport_data + 8, 8);
     in_time = swap_time_byte_order(in_time);
+
+    avg_rtt = swap_time_byte_order(get_rtt_average());
+    var_rtt = swap_time_byte_order(get_rtt_variance());
+
+    memcpy(transport_data + 16, &avg_rtt, 8);
+    memcpy(transport_data + 24, &var_rtt, 8);
 
     //from this point on acc_time will contain the total accumulated time
     kt = get_kernel_current_time();
@@ -264,7 +279,7 @@ void dump_buffer(void){
   for(i =0 ; i < buff_size; i++)
     print("[%d] %llu\n", i, buff[i]);
   print("Average: %llu ns\n", get_rtt_average());
-  print("Variance: %lld ns\n", get_rtt_variance());
+  print("Variance: %llu ns\n", get_rtt_variance());
 }
 
 void handle_icmp(struct sk_buff *skb){
@@ -317,6 +332,7 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 in_time, acc_time = 0;
+  uint64_t avg_rtt;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -338,7 +354,7 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
   //  because there is a bug in the curr kernel we can't simple do "udp_header = udp_hdr(skb);". Instead we have to do:
   udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
 
-  // We're only interested in packets that have our service port as source port.
+  // We're only interested in packets that have our service port.
   if((udp_header->dest) == (unsigned short) htons(service_port)){
 
     dump_buffer();
@@ -353,8 +369,11 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr) + 8, &acc_time, 8);
     acc_time = swap_time_byte_order(acc_time);
 
+    memcpy(transport_data + 16, &avg_rtt, 8);
+    avg_rtt = swap_time_byte_order(avg_rtt);
+
     //from this point on acc_time will contain the packet's creation time
-    acc_time = in_time - acc_time;
+    acc_time = in_time - acc_time - avg_rtt;    
     acc_time = swap_time_byte_order(acc_time);
 
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &acc_time, 8);

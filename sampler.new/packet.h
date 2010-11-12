@@ -10,6 +10,8 @@ extern unsigned char emulate_ts;
 typedef struct {
   s64 accumulated_time;
   s64 in_time;
+  uint64_t avg_rtt;
+  uint64_t rtt_variance;
   unsigned int id;
   unsigned char samples[3];
 } packet_t;
