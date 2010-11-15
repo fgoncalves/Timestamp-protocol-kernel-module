@@ -247,6 +247,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
     //from this point on acc_time will contain the total accumulated time
     kt = get_kernel_current_time();
+    do_div(avg_rtt, 2);
     acc_time += (kt - in_time) + avg_rtt;
     print("%d: Post routing adde an average rtt of %llu ns\n", __LINE__, avg_rtt);
     if(acc_time < 0) {
