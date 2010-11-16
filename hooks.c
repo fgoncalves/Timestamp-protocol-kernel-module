@@ -379,6 +379,7 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     avg_rtt = swap_time_byte_order(avg_rtt);
 
     //from this point on acc_time will contain the packet's creation time
+    do_div(avg_rtt, 2);
     acc_time = in_time - acc_time - avg_rtt;    
     acc_time = swap_time_byte_order(acc_time);
 
