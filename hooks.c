@@ -338,7 +338,6 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 in_time, acc_time = 0;
-  uint64_t avg_rtt;
 
   if(!skb){ 
     return NF_ACCEPT; 
@@ -362,9 +361,6 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
 
   // We're only interested in packets that have our service port.
   if((udp_header->dest) == (unsigned short) htons(service_port)){
-
-    dump_buffer();
-
     transport_data = skb->data + sizeof(struct iphdr) + sizeof(struct udphdr);
     
     memcpy(&in_time, transport_data + 8, 8);
@@ -375,12 +371,8 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr) + 8, &acc_time, 8);
     acc_time = swap_time_byte_order(acc_time);
 
-    memcpy(transport_data + 16, &avg_rtt, 8);
-    avg_rtt = swap_time_byte_order(avg_rtt);
-
     //from this point on acc_time will contain the packet's creation time
-    do_div(avg_rtt, 2);
-    acc_time = in_time - acc_time - avg_rtt;    
+    acc_time = in_time - acc_time;
     acc_time = swap_time_byte_order(acc_time);
 
     memcpy(skb->data + sizeof(struct iphdr) + sizeof(struct udphdr), &acc_time, 8);
