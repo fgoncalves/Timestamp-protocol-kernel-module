@@ -79,6 +79,8 @@ void collect(socket_fd client_socket){
   while(npackets > 0){
     memset(&anything, 0, sizeof(anything));
     init_packet(&anything);
+
+    write_data(anything.accumulated_time, anything.in_time, anything.id, "me", anything.samples);
     
     swap_packet_byte_order(&anything);
 
@@ -161,9 +163,9 @@ int main(int argc, char** argv){
     exit(-1);
   }
 
+  init_statistics();
+  signal(SIGINT,(void*) cleanup);
   if(is_sink){
-    init_statistics();
-    signal(SIGINT,(void*) cleanup);
     serve(my_sock_fd);
   }
   else{
