@@ -12,13 +12,13 @@ char file[50] = {0};
 FILE* file_fd;
 
 void init_statistics(){
-  sprintf(file, "ostatistics.out");
+  sprintf(file, "ostatistics.data");
 
   file_fd = fopen(file, "w");
 
   if(file_fd == null){
-    print_error("Failed to open statistics file");
-    exit(EXIT_ERROR);
+    log(F, "Failed to open statistics file");
+    exit(-1);
   }
 
   fprintf(file_fd,"# Timestamp\t\t\tDelay\t\t\tPacket ID\t\t\tSource\t\t\tData Value\n");
