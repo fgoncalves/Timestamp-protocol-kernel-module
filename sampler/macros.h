@@ -1,21 +1,39 @@
 #ifndef __MACROS_H__
 #define __MACROS_H__
 
-#define print_error(str) \
-fprintf(stderr,str); \
-fflush(stderr)
+#include <stdlib.h>
 
-#define EXIT_ERROR -1
+#ifdef DEBUG
+#include <stdio.h>
+#define log(level, format, ...)					\
+  do{								\
+    fprintf(stderr, "%s  %s:%d: ", level, __FILE__, __LINE__);	\
+    fprintf(stderr, format, ## __VA_ARGS__);			\
+    fprintf(stderr, "\n");					\
+  }while(0)
+#else
+#define log(level, str, ...)
+#endif
 
-#define alloc(PTR,TYPE,QUANT)			\
-  PTR = (TYPE*) malloc(sizeof(TYPE) * QUANT);	\
-  if(PTR == NULL){				\
-    fprintf(stderr,"##Fatal error in malloc");	\
-    exit(-1);					\
-  }
+#define I "INFO"
+#define W "WARNNING"
+#define E "ERROR"
+#define F "FATAL ERROR"
+
+#define alloc(type, how_many)				\
+  (type *) __alloc(malloc(how_many * sizeof(type)));	
+
+static inline void* __alloc(void* x){
+  if(x)
+    return x;
+  log(F,"malloc failed.");				
+  exit(1);
+  return 0;
+}
 
 #define null NULL
 #define true 1
 #define false 0
 
 #endif
+    

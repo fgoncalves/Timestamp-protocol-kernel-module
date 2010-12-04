@@ -17,7 +17,9 @@ How to run it
 |   Then you need to enter the number of packets to collect and the sink ip and port. For example:
 |
 |   ./sampler 127.0.0.1
+|
 |   1000
+|
 |   127.0.0.1:6666
 |
 |   This would send 1000 packets to the sink at 127.0.0.1:6666
