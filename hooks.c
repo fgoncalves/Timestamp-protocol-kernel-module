@@ -17,6 +17,7 @@
 #include <linux/skbuff.h> 
 #include <linux/udp.h>
 #include <linux/kthread.h>
+#include <linux/proc_fs.h>
 #include "rtt_thread.h"
 #include "utilities.h"
 
@@ -109,6 +110,69 @@ uint64_t get_rtt_variance(void){
 }
 /*=============================================================*/
 
+static struct proc_dir_entry *proc_file;
+
+static ssize_t procfs_read(struct file *filp, char *buffer, size_t length, loff_t * offset){
+  /*This function will write to a proc entry the rtt_avg, followed by a semicolon followed by its variance.
+   *The numbers written will not be human readable as they'll get written in binary format.
+   */
+  char our_buffer[18] = {0};
+
+  if(*offset > 0)
+    return 0;
+
+  if(length < 18)
+    return -1; //Not enough space in buffer
+
+  //it's easier to do it like this because of segmented memory:
+  *((uint64_t*) our_buffer) = get_rtt_average();
+  *(our_buffer + 8) = ';';
+  *((uint64_t*) (our_buffer + 9)) = get_rtt_variance();
+
+  if ( copy_to_user(buffer, our_buffer, 17) ) {
+    return -EFAULT;
+  }
+
+  *offset = 16;
+  return 17;
+}
+
+int procfs_open(struct inode *inode, struct file *file)
+{
+  try_module_get(THIS_MODULE);
+  return 0;
+}
+
+int procfs_close(struct inode *inode, struct file *file)
+{
+  module_put(THIS_MODULE);
+  return 0;/* success */
+}
+
+static struct file_operations fops = {
+  .read  = procfs_read,
+  .open  = procfs_open,
+  .release = procfs_close,
+};
+
+
+int init_proc_file(void){
+  /* create the /proc file */
+  proc_file = proc_create("rtt_stats", 0644, NULL, &fops);
+  
+  /* check if the /proc file was created successfuly */
+  if (proc_file == NULL){
+    printk(KERN_ALERT "Error: Could not initialize /proc/rtt_stats\n");
+    return -ENOMEM;
+  }
+  
+  proc_file->mode = S_IFREG | S_IRUGO | S_IWUSR;
+  proc_file->uid = 0;
+  proc_file->gid = 0;
+  proc_file->size = 80;
+
+  return 1;/* success */
+}
 
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
@@ -387,6 +451,12 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
 }
 
 int init_module(){
+
+  if(!init_proc_file()){
+    remove_proc_entry("rtt_stats", NULL);
+    print("Failed to created proc entry. Module still running though...\n");
+  }
+
   nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
   nf_ip_pre_routing.pf = PF_INET;                              
   nf_ip_pre_routing.hooknum = ip_pre_routing;
@@ -418,6 +488,7 @@ int init_module(){
 }
 
 void cleanup_module(){
+  remove_proc_entry("rtt_stats", NULL);
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_in);
