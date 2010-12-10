@@ -119,7 +119,7 @@ static ssize_t procfs_read(struct file *filp, char *buffer, size_t length, loff_
   char our_buffer[18] = {0};
 
   if(*offset > 0)
-    return 0;
+    return -1;
 
   if(length < 18)
     return -1; //Not enough space in buffer
@@ -133,7 +133,7 @@ static ssize_t procfs_read(struct file *filp, char *buffer, size_t length, loff_
     return -EFAULT;
   }
 
-  *offset = 16;
+  *offset = 0; //This enables reading again from proc
   return 17;
 }
 
@@ -338,9 +338,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
 
 void compute_rtt(s64 new_timestamp){
   //Just printing some values. I'm not doing the mean or standard deviation
-
   s64 rtt = get_kernel_current_time() - new_timestamp;
-
   store_rtt((uint64_t) rtt);
 }
 
@@ -363,12 +361,11 @@ void handle_icmp(struct sk_buff *skb){
     //ok maybe it's the reply from sink
     //lets check if we have 16 bytes of data
 
-    if(ntohs(iph->tot_len) - sizeof(struct iphdr) - sizeof(struct icmphdr) == 16){
+    if(ntohs(iph->tot_len) - sizeof(struct iphdr) - sizeof(struct icmphdr) >= 16){
       //then grab the id and check its value
       s64 id = *((s64*) (skb->data + sizeof(struct iphdr) + sizeof(struct icmphdr)));
       if(swap_time_byte_order(id) != 0x00000000beefcafe)
 	return;
-
       //grab the timestamp sent and compute rtt
       compute_rtt(swap_time_byte_order(*((s64*) (skb->data + sizeof(struct iphdr) + sizeof(struct icmphdr) + 8))));
     }
