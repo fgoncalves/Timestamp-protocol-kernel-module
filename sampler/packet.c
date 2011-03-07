@@ -70,8 +70,7 @@ void init_packet(packet_t* packet){
   struct timespec ts;
   s64 creation_timestamp;
 
-  packet->avg_rtt = 0;
-  packet->rtt_variance = 0;
+  packet->rtt = 0;
   packet->id = id;
   packet->accumulated_time = 0;
 
