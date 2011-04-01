@@ -1,5 +1,5 @@
 obj-m += timestamp.o
-timestamp-objs := hooks.o utilities.o
+timestamp-objs := hooks.o utilities.o rbtree.o packet_tree.o packet_tree_list.o
 
 KERNEL_PATH=/lib/modules/$(shell uname -r)/build
 #KERNEL_PATH = 2.6.24.4-gb9e83242-dirty

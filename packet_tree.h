@@ -11,8 +11,8 @@ typedef struct {
 
 extern packet_tree* new_packet_tree(void);
 extern void free_packet_tree(packet_tree* pkt_t);
-extern int8_t store_packet_in_tree(packet_tree* pkt_t, struct ip_hdr* pkt);
-extern struct ip_hdr* get_packet_from_tree(packet_tree* pkt_t, uint32_t id);
+extern int8_t store_packet_in_tree(packet_tree* pkt_t, struct iphdr* pkt);
+extern struct iphdr* get_packet_from_tree(packet_tree* pkt_t, uint32_t id);
 extern void remove_packet_from_tree(packet_tree* pkt_t, uint32_t id);
-extern struct ip_hdr* discard_oldest(packet_tree* pkt_t);
+extern struct iphdr* discard_oldest(packet_tree* pkt_t);
 #endif

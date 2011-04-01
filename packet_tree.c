@@ -4,7 +4,7 @@
 
 
 static  void* packet_key(struct stree_node* node){
-  struct ip_hdr* ip = (ip_hdr*) node->node;
+  struct iphdr* ip = (ip_hdr*) node->node;
   struct packet_t* p = (packet_t*) (((char*) ip) + ip->ihl << 2 + sizeof(struct udp_hdr));
   
   return ntohl(p->id);
@@ -39,7 +39,7 @@ void free_packet_tree(packet_tree* pkt_t){
   kfree(pkt_t);
 }
 
-int8_t store_packet_in_tree(packet_tree* pkt_t, struct ip_hdr* pkt){
+int8_t store_packet_in_tree(packet_tree* pkt_t, struct iphdr* pkt){
   char* p = (char*) kmalloc(pkt->tot_lem);
 
   if(!p){
@@ -54,18 +54,18 @@ int8_t store_packet_in_tree(packet_tree* pkt_t, struct ip_hdr* pkt){
   return 1;
 }
 
-struct ip_hdr* get_packet_from_tree(packet_tree* pkt_t, uint32_t id){
-  return (struct ip_hdr*) search_rbtree(*pkt_t, &id);
+struct iphdr* get_packet_from_tree(packet_tree* pkt_t, uint32_t id){
+  return (struct iphdr*) search_rbtree(*pkt_t, &id);
 }
 
 void remove_packet_from_tree(packet_tree* pkt_t, uint32_t id){
-  struct ip_hdr* ip = (struct ip_hdr*) rb_tree_delete(pkt_t, &id);
+  struct iphdr* ip = (struct iphdr*) rb_tree_delete(pkt_t, &id);
   if(ip)
     kfree(ip);
 }
 
-struct ip_hdr* discard_oldest(packet_tree* pkt_t){
-  struct ip_hdr* oldest = get_minimum(pkt_t->rbt);
+struct iphdr* discard_oldest(packet_tree* pkt_t){
+  struct iphdr* oldest = get_minimum(pkt_t->rbt);
   packet_t* p = (packet_t*) (((char*) oldest) + oldest->ihl << 2 + sizeof(struct udp_hdr));
   rb_tree_delete(pkt_t->rbt, ntohl(p->id));
   pkt_t->npackts--;

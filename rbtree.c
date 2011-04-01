@@ -1,5 +1,5 @@
 #include <linux/kernel.h>
-#include <linux/slab_def.h>
+#include <linux/slab.h>
 #include "rbtree.h"
 
 tree_node RBNIL = {
@@ -11,7 +11,7 @@ tree_node RBNIL = {
 };
 
 static tree_node* new_rbtree_node(void* node){
-  tree_node *z = (tree_node*) kmalloc(sizeof(tree_node));
+  tree_node *z = (tree_node*) kmalloc(sizeof(tree_node), GFP_ATOMIC);
   
   if(!z){
     printk("%s in %s:%d: kmalloc failed.\n", __FUNCTION__, __FILE__, __LINE__);
@@ -48,13 +48,13 @@ void* get_minimum(tree_root* root){
   return root->minimum->node;
 }
 
-tree_root* new_simple_rbtree(){
+tree_root* new_simple_rbtree(void){
   return new_rbtree(NULL, NULL);  
 }
 
 tree_root* new_rbtree(void* (*key_function_pointer)(struct stree_node* node),
 		    int64_t (*compare_function_pointer)(void* keyA, void* keyB)){
-  tree_root* r = (tree_root*) kmalloc(sizeof(tree_root));
+  tree_root* r = (tree_root*) kmalloc(sizeof(tree_root), GFP_ATOMIC);
   
   if(!r){
     printk("%s in %s:%d: kmalloc failed.\n", __FUNCTION__, __FILE__, __LINE__);
@@ -331,7 +331,6 @@ void* rb_tree_delete(tree_root* root, void* key){
   hold_node_to_delete = y = z = __search_rbtree_node(*root, key);
 
   if(y == NULL){
-    debug(W, "Trying to remove a node from tree that does not exist.\n");
     return NULL;
   }
 
@@ -375,7 +374,7 @@ void* rb_tree_delete(tree_root* root, void* key){
 
 tree_iterator* new_tree_iterator(tree_root* root){
   tree_node* aux = root->root;
-  tree_iterator* it = (tree_iterator*) kmalloc(sizeof(tree_iterator));
+  tree_iterator* it = (tree_iterator*) kmalloc(sizeof(tree_iterator), GFP_ATOMIC);
   
   if(!it){
     printk("%s in %s:%d: kmalloc failed.\n", __FUNCTION__, __FILE__, __LINE__);
@@ -389,19 +388,19 @@ tree_iterator* new_tree_iterator(tree_root* root){
     if(aux->right != &RBNIL)
       aux = aux->right;
   }
-  it->current = aux;
+  it->cur = aux;
   return it;
 }
 
 uint8_t tree_iterator_has_next(tree_iterator* it){
-  if(it->current != &RBNIL)
+  if(it->cur != &RBNIL)
     return 1;
   return 0;
 }
 
 void* tree_iterator_next(tree_iterator* it){
   tree_node* aux;
-  tree_node* tn = it->current;
+  tree_node* tn = it->cur;
 
   if(tn->parent != &RBNIL && 
      tn->parent->right != &RBNIL && 
@@ -414,10 +413,10 @@ void* tree_iterator_next(tree_iterator* it){
       if(aux->right != &RBNIL)
 	aux = aux->right;
     }   
-    it->current = aux;
+    it->cur = aux;
   }
   else
-    it->current = it->current->parent;
+    it->cur = it->cur->parent;
   return tn->node;
 }
 

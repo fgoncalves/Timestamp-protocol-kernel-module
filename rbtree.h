@@ -22,10 +22,10 @@ typedef struct sroot{
 }tree_root;
 
 typedef struct siterator{
-  struct stree_node* current;
+  struct stree_node* cur;
 }tree_iterator;
 
-extern tree_root* new_simple_rbtree();
+extern tree_root* new_simple_rbtree(void);
 extern tree_root* new_rbtree(void* (*key_function_pointer)(struct stree_node* node),
 			   int64_t (*compare_function_pointer)(void* keyA, void* keyB));
 extern void* rb_tree_insert(tree_root* root, void* node);
