@@ -3,7 +3,7 @@
 typedef struct {
   s64 accumulated_time;
   s64 in_time;
-  uint64_t rtt;
+  s64 rtt;
   uint32_t id;
   uint8_t samples[3];
 } packet_t;
