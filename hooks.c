@@ -106,13 +106,18 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
 uint8_t have_previous_packet(packet_tree* pkt_t, struct iphdr* p){
   packet_t* pkt = APPLICATION_PAYLOAD(p);
 
-  if(!pkt_t)
+  if(!pkt_t){
+    printk("BANANA: Don't have previous for %u packet because packet tree is null.", ntohl(pkt->id));
     return 0;
+  }
 
   dump_packet_tree(pkt_t);
 
-  if(get_packet_from_tree(pkt_t, ntohl(pkt->id) - 1))
+  if(get_packet_from_tree(pkt_t, ntohl(pkt->id) - 1)){
+    printk("BANANA: Have previous for %u.", ntohl(pkt->id));
     return 1;
+  }
+  printk("BANANA: Don't have previous for %u.", ntohl(pkt->id));
   return 0;
 }
 
@@ -136,14 +141,25 @@ uint8_t is_tree_full(packet_tree* pkt_t){
   return (pkt_t->npackts == max_packets);
 }
 
+void dump_packet(uint8_t* bytes, uint16_t len){
+  int i;
+  for(i=0; i<len; i++)
+    printk("%02X ", bytes[i]);
+  printk("\n");
+  printk("Packet has %u bytes\n", len);
+}
+
 uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
+  int status;
   skb_reset_tail_pointer(skb);
-  if(skb_tailroom(skb) < ntohl(p->tot_len))
-    if(!pskb_expand_head(skb, 0, ntohl(p->tot_len), GFP_ATOMIC)){
-      printk("pskb_expand_head failes\n");
+  if(skb_tailroom(skb) < ntohs(p->tot_len)){
+    if((status = pskb_expand_head(skb, 0, ntohs(p->tot_len), GFP_ATOMIC))){
+      printk("pskb_expand_head failed. Error: %d\n", status);
       return 0;
     }
-  memcpy(skb_put(skb, ntohl(p->tot_len)), p,  ntohl(p->tot_len));
+  }
+  memcpy(skb_put(skb, ntohs(p->tot_len)), p,  ntohs(p->tot_len));
+  dump_packet((uint8_t*) skb->data, ntohs(p->tot_len));
   return 1;
 }
 
@@ -155,7 +171,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 in_time = 0, air_time = 0;
-  packet_t* pkt, *prev;
+  packet_t* pkt = NULL, *prev = NULL;
   packet_tree* pkt_t = NULL;
 
   if(!skb){ 
@@ -198,6 +214,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
       prev_ip_header = get_previous_packet(pkt_t, ip_header);
       prev = APPLICATION_PAYLOAD(prev_ip_header);
       air_time = swap_time_byte_order(pkt->rtt);
+      air_time *= 1000; //convert to ns
       in_time = swap_time_byte_order(prev->in_time);
       in_time += air_time;
       prev->in_time = swap_time_byte_order(in_time);      
@@ -209,6 +226,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
 	udp_header->check = 0xFFFF;
  
       replace_packet_in_skb(skb, prev_ip_header);
+      remove_packet_from_tree(pkt_t, ntohl(prev->id));
       return NF_ACCEPT;
     }else{
       if(is_tree_full(pkt_t))

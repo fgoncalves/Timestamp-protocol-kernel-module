@@ -1,6 +1,6 @@
-#ifndef __PACKET_H__
-#define __PACKET_H__
-typedef struct {
+#ifndef __KPACKET_H__
+#define __KPACKET_H__
+typedef struct kspacket{
   s64 accumulated_time;
   s64 in_time;
   s64 rtt;

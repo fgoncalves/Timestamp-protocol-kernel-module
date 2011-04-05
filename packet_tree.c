@@ -61,8 +61,9 @@ struct iphdr* get_packet_from_tree(packet_tree* pkt_t, uint32_t id){
 
 void remove_packet_from_tree(packet_tree* pkt_t, uint32_t id){
   struct iphdr* ip = (struct iphdr*) rb_tree_delete(pkt_t->rbt, &id);
-  if(ip)
-    kfree(ip);
+  printk("Removing packet %u\n", id);
+  /*if(ip)
+    kfree(ip);*/
 }
 
 struct iphdr* discard_oldest(packet_tree* pkt_t){
@@ -78,6 +79,19 @@ void dump_packet_tree(packet_tree* pkt_t){
   tree_iterator* it = new_tree_iterator(pkt_t->rbt);	
   struct iphdr* p;
   packet_t *pkt;
+  if(!it){
+    printk("Iterator is null\n");
+    return;
+  }
+  if(!pkt_t){
+    printk("pkt_t null\n");
+    return;
+  }
+  if(!pkt_t->rbt){
+    printk("pkt_t->rbt null\n");
+    return;
+  }
+
   printk("========================= TREE DUMP ===========================\n");
   while(tree_iterator_has_next(it)){			
     p = (struct iphdr*) tree_iterator_next(it);
