@@ -35,30 +35,20 @@ void swap_packet_byte_order(packet_t* packet){
   word = htonl(word);
   memcpy(bytes + 12, &word, 4);
 
-  //first half of avg_rtt
+  //first half of rtt
   memcpy(&word, bytes + 16, 4);
   word = htonl(word);
   memcpy(bytes + 16, &word, 4);
 
-  //second half of avg_rtt
+  //second half of rtt
   memcpy(&word, bytes + 20, 4);
   word = htonl(word);
   memcpy(bytes + 20, &word, 4);
 
-  //first half of avg_rtt
+  //id
   memcpy(&word, bytes + 24, 4);
   word = htonl(word);
   memcpy(bytes + 24, &word, 4);
-
-  //second half of avg_rtt
-  memcpy(&word, bytes + 28, 4);
-  word = htonl(word);
-  memcpy(bytes + 28, &word, 4);
-
-  //id
-  memcpy(&word, bytes + 32, 4);
-  word = htonl(word);
-  memcpy(bytes + 32, &word, 4);
 
   packet = (packet_t*) bytes;
   //TODO: samples need conversion?
