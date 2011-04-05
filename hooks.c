@@ -105,25 +105,25 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
 
 uint8_t have_previous_packet(packet_tree* pkt_t, struct iphdr* p){
   packet_t* pkt = APPLICATION_PAYLOAD(p);
-
+  uint32_t id;
   if(!pkt_t){
-    printk("BANANA: Don't have previous for %u packet because packet tree is null.", ntohl(pkt->id));
     return 0;
   }
 
   dump_packet_tree(pkt_t);
 
-  if(get_packet_from_tree(pkt_t, ntohl(pkt->id) - 1)){
-    printk("BANANA: Have previous for %u.", ntohl(pkt->id));
+  id = ntohl(pkt->id) - 1;
+  if(get_packet_from_tree(pkt_t, htonl(id))){
     return 1;
   }
-  printk("BANANA: Don't have previous for %u.", ntohl(pkt->id));
+
   return 0;
 }
 
 struct iphdr* get_previous_packet(packet_tree* pkt_t, struct iphdr* p){
   packet_t* pkt = APPLICATION_PAYLOAD(p);
-  return get_packet_from_tree(pkt_t, ntohl(pkt->id) - 1);
+  uint32_t id = ntohl(pkt->id) - 1;
+  return get_packet_from_tree(pkt_t, htonl(id));
 }
 
 void store_packet_in_tree_list(packet_tree* pkt_t, struct iphdr* p){
@@ -159,7 +159,6 @@ uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
     }
   }
   memcpy(skb_put(skb, ntohs(p->tot_len)), p,  ntohs(p->tot_len));
-  dump_packet((uint8_t*) skb->data, ntohs(p->tot_len));
   return 1;
 }
 
@@ -226,7 +225,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
 	udp_header->check = 0xFFFF;
  
       replace_packet_in_skb(skb, prev_ip_header);
-      remove_packet_from_tree(pkt_t, ntohl(prev->id));
+      remove_packet_from_tree(pkt_t, prev->id);
       return NF_ACCEPT;
     }else{
       if(is_tree_full(pkt_t))
