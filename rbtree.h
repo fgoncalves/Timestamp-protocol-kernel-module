@@ -18,7 +18,6 @@ typedef struct sroot{
   struct stree_node* root;
   void* (*key)(struct stree_node* node);
   int64_t (*compare)(void* keyA, void* keyB);
-  tree_node* minimum;
 }tree_root;
 
 typedef struct siterator{

@@ -166,7 +166,7 @@ uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
  * This hook will run when a packet enters this node.
  */
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
-  struct iphdr* ip_header, *prev_ip_header;
+  struct iphdr* ip_header, *prev_ip_header, *oldest;
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 in_time = 0, air_time = 0;
@@ -228,8 +228,11 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
       remove_packet_from_tree(pkt_t, prev->id);
       return NF_ACCEPT;
     }else{
-      if(is_tree_full(pkt_t))
-	discard_oldest(pkt_t);
+      if(is_tree_full(pkt_t)){
+	oldest = discard_oldest(pkt_t);
+	if(oldest)
+	  kfree(oldest);
+      }
 
       store_packet_in_tree_list(pkt_t, ip_header);
       kfree_skb(skb);

@@ -34,20 +34,6 @@ static int64_t __compare_by_pointer(void* keyA, void* keyB){
   return keyA - keyB;
 }
 
-static void set_if_minimum(tree_root* r, tree_node* z){
-  if(r->minimum == &RBNIL){
-    r->minimum = z;
-    return;
-  }
-
-  if(r->compare(r->key(r->minimum), r->key(z)) >= 0)
-    r->minimum = z;
-}
-
-void* get_minimum(tree_root* root){
-  return root->minimum->node;
-}
-
 tree_root* new_simple_rbtree(void){
   return new_rbtree(NULL, NULL);  
 }
@@ -69,7 +55,6 @@ tree_root* new_rbtree(void* (*key_function_pointer)(struct stree_node* node),
     r->key = key_function_pointer;
     r->compare = compare_function_pointer;
   }
-  r->minimum = &RBNIL;
   return r;
 }
 
@@ -199,7 +184,6 @@ void* rb_tree_insert(tree_root* root, void* node){
     else
       y->right = z;
   }
-  set_if_minimum(root, z);
   rb_tree_insert_fixup(root, z);
   return NULL;
 }
@@ -261,6 +245,12 @@ static void __rb_transplant(tree_root* root, tree_node* u, tree_node* v){
 static tree_node* __rb_tree_minimum(tree_node* z){
   for(; z->left != &RBNIL; z = z->left);
   return z;
+}
+
+void* get_minimum(tree_root* root){
+  if(root->root == &RBNIL)
+    return NULL;
+  return (__rb_tree_minimum(root->root))->node;
 }
 
 static void __rb_tree_delete_fixup(tree_root* root, tree_node* x){
@@ -364,9 +354,6 @@ void* rb_tree_delete(tree_root* root, void* key){
     }
   if(y_original_color == BLACK)
     __rb_tree_delete_fixup(root, x);
-
-  if(root->minimum == hold_node_to_delete)
-    root->minimum = root->minimum->parent;
 
   kfree(hold_node_to_delete);
   return node_to_return;

@@ -69,6 +69,8 @@ struct iphdr* discard_oldest(packet_tree* pkt_t){
   struct iphdr* oldest = get_minimum(pkt_t->rbt);
   packet_t* p = (packet_t*) (((char*) oldest) + (oldest->ihl << 2) + sizeof(struct udphdr));
   uint32_t id = ntohl(p->id);
+  if(!oldest)
+    return NULL;
   rb_tree_delete(pkt_t->rbt,&id); 
   pkt_t->npackts--;
   return oldest;
@@ -87,7 +89,9 @@ void dump_packet_tree(packet_tree* pkt_t){
   }							
   destroy_iterator(it);
   p = (struct iphdr*) get_minimum(pkt_t->rbt);
-  pkt = (packet_t*) (((char*) p) + (p->ihl << 2) + sizeof(struct udphdr));
-  printk("+) Tree minimum is %u\n", ntohl(pkt->id));
+  if(p){
+    pkt = (packet_t*) (((char*) p) + (p->ihl << 2) + sizeof(struct udphdr));
+    printk("+) Tree minimum is %u\n", ntohl(pkt->id));
+  }
   printk("===============================================================\n");
 }
