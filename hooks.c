@@ -21,6 +21,8 @@
 #include "packet_tree_list.h"
 #include "kpacket.h"
 
+#define U2NS 1000
+
 #define __udp_proto_id__ IPPROTO_UDP
 
 #ifdef NF_IP_PRE_ROUTING
@@ -213,7 +215,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
       prev_ip_header = get_previous_packet(pkt_t, ip_header);
       prev = APPLICATION_PAYLOAD(prev_ip_header);
       air_time = swap_time_byte_order(pkt->rtt);
-      air_time *= 10000; //convert to ns
+      air_time *= U2NS; //convert to ns
       in_time = swap_time_byte_order(prev->in_time);
       in_time += air_time;
       prev->in_time = swap_time_byte_order(in_time);      
