@@ -18,8 +18,8 @@
 #include <linux/udp.h>
 #include <linux/kthread.h>
 #include "utilities.h"
-#include "packet_tree_list.h"
 #include "kpacket.h"
+#include "packet_list.h"
 
 #define U2NS 1000
 
@@ -55,11 +55,7 @@ static unsigned short service_port = 57843;
 module_param(service_port, ushort, 0000);
 MODULE_PARM_DESC(service_port, "Destination port. Default 57843");
 
-static uint32_t max_packets = 20;
-module_param(max_packets, uint, 0000);
-MODULE_PARM_DESC(max_packets, "Maximum number of packets for each source that this node should buffer before discarding the oldest.");
-
-pkt_list *packets_awaiting_air_time_estimation;
+pckt_list *packets_awaiting_air_time_estimation;
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
  *
@@ -105,52 +101,6 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
   return (__be16) ~sum;
 }
 
-uint8_t have_previous_packet(packet_tree* pkt_t, struct iphdr* p){
-  packet_t* pkt = APPLICATION_PAYLOAD(p);
-  uint32_t id;
-  if(!pkt_t){
-    return 0;
-  }
-
-  dump_packet_tree(pkt_t);
-
-  id = ntohl(pkt->id) - 1;
-  if(get_packet_from_tree(pkt_t, htonl(id))){
-    return 1;
-  }
-
-  return 0;
-}
-
-struct iphdr* get_previous_packet(packet_tree* pkt_t, struct iphdr* p){
-  packet_t* pkt = APPLICATION_PAYLOAD(p);
-  uint32_t id = ntohl(pkt->id) - 1;
-  return get_packet_from_tree(pkt_t, htonl(id));
-}
-
-void store_packet_in_tree_list(packet_tree* pkt_t, struct iphdr* p){
-  if(!pkt_t)
-    pkt_t = append_packet_tree(packets_awaiting_air_time_estimation, p->saddr);
-
-  if(!store_packet_in_tree(pkt_t, p))
-    printk("Failed to store packet in tree\n");
-}
-
-uint8_t is_tree_full(packet_tree* pkt_t){
-  if(!pkt_t)
-    return 0;
-
-  return (pkt_t->npackts == max_packets);
-}
-
-void dump_packet(uint8_t* bytes, uint16_t len){
-  int i;
-  for(i=0; i<len; i++)
-    printk("%02X ", bytes[i]);
-  printk("\n");
-  printk("Packet has %u bytes\n", len);
-}
-
 uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
   int status;
   skb_reset_tail_pointer(skb);
@@ -168,13 +118,12 @@ uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
  * This hook will run when a packet enters this node.
  */
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
-  struct iphdr* ip_header, *prev_ip_header, *oldest;
+  struct iphdr* ip_header, *prev_ip_header;
   struct udphdr* udp_header;
   unsigned char* transport_data;
   s64 in_time = 0, air_time = 0;
   packet_t* pkt = NULL, *prev = NULL;
-  packet_tree* pkt_t = NULL;
-
+  
   if(!skb){ 
     return NF_ACCEPT; 
   } 
@@ -207,12 +156,9 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
       udp_header->check = 0xFFFF;
     
     pkt = APPLICATION_PAYLOAD(ip_header);
-    pkt_t = get_packet_tree(packets_awaiting_air_time_estimation, ip_header->saddr);
+    prev_ip_header = add_packet_to_list(packets_awaiting_air_time_estimation, ip_header);
 
-    if(have_previous_packet(pkt_t, ip_header)){
-      store_packet_in_tree(pkt_t, ip_header);
-
-      prev_ip_header = get_previous_packet(pkt_t, ip_header);
+    if(prev_ip_header){
       prev = APPLICATION_PAYLOAD(prev_ip_header);
       air_time = swap_time_byte_order(pkt->rtt);
       air_time *= U2NS; //convert to ns
@@ -227,16 +173,8 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
 	udp_header->check = 0xFFFF;
  
       replace_packet_in_skb(skb, prev_ip_header);
-      remove_packet_from_tree(pkt_t, prev->id);
       return NF_ACCEPT;
     }else{
-      if(is_tree_full(pkt_t)){
-	oldest = discard_oldest(pkt_t);
-	if(oldest)
-	  kfree(oldest);
-      }
-
-      store_packet_in_tree_list(pkt_t, ip_header);
       kfree_skb(skb);
       return NF_STOLEN;
     }
@@ -367,7 +305,7 @@ int init_module(){
   nf_ip_local_in.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_in);
 
-  if(!(packets_awaiting_air_time_estimation = make_pkt_list()))
+  if(!(packets_awaiting_air_time_estimation = make_packet_list()))
     return 1;
 
   print("Packets are now being timestamped.\n");
@@ -379,7 +317,7 @@ void cleanup_module(){
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_in);
 
-  free_pkt_list(packets_awaiting_air_time_estimation);
+  free_packet_list(packets_awaiting_air_time_estimation);
 
   print("Packets are no longer being timestamped.\n");
 }
