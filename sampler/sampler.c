@@ -9,6 +9,11 @@
 #include <signal.h>
 #include <errno.h>
 #include <ctype.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#include <netdb.h>
+#include <unistd.h>
 #include "packet.h"
 #include "statistics.h"
 #include "macros.h"
@@ -16,6 +21,8 @@
 /*global*/ unsigned int npackets = 0;
 /*global*/ unsigned short sink_dport = 0;
 /*global*/ char sink_dip[16] = {0};
+
+char* iface;
 
 typedef int socket_fd;
 
@@ -115,28 +122,72 @@ unsigned int parse_samples_per_second(char* samples){
   return (unsigned int) atoi(samples);
 }
 
+struct in_addr get_ip_from_iface(){
+  struct ifaddrs *ifaddr, *ifa;
+  int family;
+  struct in_addr ret;
+
+  if (getifaddrs(&ifaddr) == -1) {
+    perror("getifaddrs");
+    exit(-1);
+  }
+
+  for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == NULL)
+      continue;
+
+    family = ifa->ifa_addr->sa_family;
+    if(family == AF_INET && !strcmp(iface, ifa->ifa_name)){
+      memcpy(&ret, &(((struct sockaddr_in*) ifa->ifa_addr)->sin_addr), sizeof(struct sockaddr_in));
+      break;      
+    }
+  }
+
+  //  freeifaddrs(ifaddr);
+  return ret;
+}
+
 int main(int argc, char** argv){
   struct sockaddr_in sock;
   int my_sock_fd, i;
   unsigned short port = 57843;
   char is_sink = false;
 
-  if(argc < 2){
-    printf("Usage: %s <ip:port to bind> [samples_per_second | -e] [-s]\n",argv[0]);
+  if(argc < 3){
+    printf("Usage: %s -i <interface> [-r samples_per_second | -sp sink_port | -p port | -e] [-s]\n",argv[0]);
     exit(-1);
   }
 
-  if(argc > 2){
-    for(i = 2; i < argc; i++){
-      if(strcmp(argv[i], "-e") == 0){
-	emulate_ts = true;
-	continue;
-      }
-      if(strcmp(argv[i], "-s") == 0){
-	is_sink = true;
-	continue;
-      }
-      samples_per_second = parse_samples_per_second(argv[i]);
+  for(i = 1; i < argc;){
+    if(strcmp(argv[i], "-e") == 0){
+      emulate_ts = true;
+      i++;
+      continue;
+    }
+    if(strcmp(argv[i], "-s") == 0){
+      is_sink = true;
+      i++;
+      continue;
+    }
+    if(strcmp(argv[i], "-r") == 0){
+      samples_per_second = parse_samples_per_second(argv[i + 1]);
+      i+=2;
+      continue;
+    }
+    if(strcmp(argv[i], "-i") == 0){
+      iface = argv[i + 1];
+      i+=2;
+      continue;
+    }
+    if(strcmp(argv[i], "-p") == 0){
+      port = atoi(argv[i + 1]);
+      i+=2;
+      continue;
+    }
+    if(strcmp(argv[i], "-sp") == 0){
+      sink_dport = atoi(argv[i + 1]);
+      i+=2;
+      continue;
     }
   }
 
@@ -152,16 +203,14 @@ int main(int argc, char** argv){
   memset(& sock, 0, sizeof(sock));
   sock.sin_family = AF_INET;
   sock.sin_port = htons(port);
-  sock.sin_addr.s_addr = inet_addr(argv[1]);
-  if(sock.sin_addr.s_addr == (in_addr_t) (-1)){
-    log(E, "Unable to parse ip %s.\n", argv[1]);
-    exit(-1);
-  }
+  sock.sin_addr = get_ip_from_iface();
 
   if(bind(my_sock_fd, (struct sockaddr *) &sock, sizeof(sock)) == -1){
     log(E, "Unnable to bind socket\n");
     exit(-1);
   }
+
+  printf("Bound to %s:%u\n", inet_ntoa(sock.sin_addr), port);
 
   init_statistics();
   signal(SIGINT,(void*) cleanup);
