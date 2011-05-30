@@ -19,11 +19,9 @@
 #include <linux/kthread.h>
 #include "utilities.h"
 #include "kpacket.h"
-#include "packet_list.h"
+#include "klist.h"
 
 #define U2NS 1000
-
-#define __udp_proto_id__ IPPROTO_UDP
 
 #ifdef NF_IP_PRE_ROUTING
 #define ip_pre_routing NF_IP_PRE_ROUTING
@@ -55,7 +53,7 @@ static unsigned short service_port = 57843;
 module_param(service_port, ushort, 0000);
 MODULE_PARM_DESC(service_port, "Destination port. Default 57843");
 
-pckt_list *packets_awaiting_air_time_estimation;
+klist *packets_awaiting_air_time_estimation;
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
  *
@@ -101,17 +99,62 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
   return (__be16) ~sum;
 }
 
+//###  Change skb by removing its ip packet and replacing by the given one. The idea is to replace it be the previous one with air time estimated and tell netfilters to accept the packet. ###
+//---
+//   + skb - Socket buffer to replace ip packet.
+//   + p - New ip packet.
+//> **Return**: 1 if succeeded, 0 otherwise.
 uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
   int status;
+  debug("Replacing skb ip packet.\n");
   skb_reset_tail_pointer(skb);
   if(skb_tailroom(skb) < ntohs(p->tot_len)){
-    if((status = pskb_expand_head(skb, 0, ntohs(p->tot_len), GFP_ATOMIC))){
+    debug("I need to expand skb tail room to %uB.\n", ntohs(p->tot_len));
+    if((status = pskb_expand_head(skb, 0, ntohs(p->tot_len) - skb_tailroom(skb), GFP_ATOMIC))){
       printk("pskb_expand_head failed. Error: %d\n", status);
       return 0;
     }
+    debug("I was able to expand skb tail room and now we have %uB.\n", skb_tailroom(skb));
   }
   memcpy(skb_put(skb, ntohs(p->tot_len)), p,  ntohs(p->tot_len));
+  skb_set_network_header(skb, 0);
+  debug("Skb should contain a new packet.\n");
   return 1;
+}
+
+//###  Add a packet to the air time estimation list based on its source ip. If a previous packet exists it will be returned. ###
+//---
+//   + kl - List that keeps packets awaiting air time estimation.
+//   + new - Ip packet received now.
+//> **Return**: If exists, the previous packet will be return. This packet has not yet been delivered to the application layer. Otherwise, NULL is returned.
+static struct iphdr* add_packet_to_list(klist* kl, struct iphdr* new){
+  klist_iterator* it = make_klist_iterator(kl);
+  struct iphdr *n;
+  klist_node* i;
+  char* data;
+  debug("Adding packet to list.\n");
+  while(klist_iterator_has_next(it)){
+    i = klist_iterator_next(it);
+    n = (struct iphdr*) i->data;
+    if(n->saddr == new->saddr){
+      debug("I've found a previous packet!!\n");
+      i->data = new;
+      free_klist_iterator(it);
+      return n;
+    }
+  }
+  free_klist_iterator(it);
+  debug("I could not find a pevious packet. I'm going to add this one");
+  data = kmalloc(ntohs(new->tot_len), GFP_ATOMIC);
+  if(!data){
+    printk("%s in %s:%u: kmalloc failed. Unable to add packet to list.\n", __FUNCTION__, __FILE__, __LINE__);
+    return NULL;
+  }
+  memcpy(data, new, ntohs(new->tot_len));
+
+  add_klist_node_to_klist(kl, make_klist_node(data));
+  debug("OK, I've added the packet.\n");
+  return NULL;
 }
 
 /*
@@ -133,12 +176,11 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
   
   // If packet is not UDP we don't need to check it.
   ip_header = ip_hdr(skb);
-  if(ip_header->protocol != __udp_proto_id__){ 
+  if(ip_header->protocol != IPPROTO_UDP){ 
     return NF_ACCEPT;
   }
 
-  //  because there is a bug in the curr kernel we can't simply do "udp_header = udp_hdr(skb);". Instead we have to do:
-  udp_header = (struct udphdr*)(skb->data+(ip_header->ihl << 2));
+  udp_header = (struct udphdr*)(((char*) ip_header) + (ip_header->ihl << 2));
 
   // We're only interested in packets that have our service port as source port.
   if((udp_header->dest) == (unsigned short) htons(service_port)){ 
@@ -159,6 +201,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     prev_ip_header = add_packet_to_list(packets_awaiting_air_time_estimation, ip_header);
 
     if(prev_ip_header){
+      debug("This is great, add_packet_to_list found a previous packet.\n");
       prev = APPLICATION_PAYLOAD(prev_ip_header);
       air_time = swap_time_byte_order(pkt->rtt);
       air_time *= U2NS; //convert to ns
@@ -167,14 +210,14 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
       prev->in_time = swap_time_byte_order(in_time);      
       
       udp_header = (struct udphdr*) (((char*) prev_ip_header) + (prev_ip_header->ihl << 2));
-      udp_header->check = 0;
-      udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
+      udp_header->check = udp_checksum(prev_ip_header, udp_header, transport_data);
       if(!udp_header->check)
 	udp_header->check = 0xFFFF;
  
       replace_packet_in_skb(skb, prev_ip_header);
       return NF_ACCEPT;
     }else{
+      debug("add_packet_to_list did not find a previous packet. I'm stealing this socket buffer.\n");
       kfree_skb(skb);
       return NF_STOLEN;
     }
@@ -200,7 +243,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
   }
   
   ip_header = ip_hdr(skb);
-  if(ip_header->protocol != __udp_proto_id__){ 
+  if(ip_header->protocol != IPPROTO_UDP){ 
     return NF_ACCEPT;
   }
 
@@ -252,7 +295,7 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
   
   ip_header = ip_hdr(skb);
 
-  if(ip_header->protocol != __udp_proto_id__){ 
+  if(ip_header->protocol != IPPROTO_UDP){ 
     return NF_ACCEPT;
   }
 
@@ -287,6 +330,9 @@ unsigned int nf_ip_local_in_hook(unsigned int hooknum, struct sk_buff *skb, cons
 }
 
 int init_module(){
+  if(!(packets_awaiting_air_time_estimation = make_klist()))
+    return 1;
+
   nf_ip_pre_routing.hook = nf_ip_pre_routing_hook;
   nf_ip_pre_routing.pf = PF_INET;                              
   nf_ip_pre_routing.hooknum = ip_pre_routing;
@@ -305,11 +351,12 @@ int init_module(){
   nf_ip_local_in.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_in);
 
-  if(!(packets_awaiting_air_time_estimation = make_packet_list()))
-    return 1;
-
   print("Packets are now being timestamped.\n");
   return 0;
+}
+
+void free_l_node(void* data){
+  kfree(data);
 }
 
 void cleanup_module(){
@@ -317,7 +364,7 @@ void cleanup_module(){
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_in);
 
-  free_packet_list(packets_awaiting_air_time_estimation);
+  free_klist(packets_awaiting_air_time_estimation, free_l_node);
 
   print("Packets are no longer being timestamped.\n");
 }

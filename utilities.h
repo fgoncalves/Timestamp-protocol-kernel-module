@@ -16,4 +16,14 @@
 extern s64 get_kernel_current_time(void);
 extern s64 swap_time_byte_order(s64 time);
 
+#ifdef DEBUG
+#define debug(format, ...)					\
+  do{								\
+    printk("%s in %s:%u: ", __FUNCTION__, __FILE__, __LINE__);	\
+    printk(format, ## __VA_ARGS__);				\
+  }while(0);
+#else							
+#define debug(format, ...)					
+#endif
+
 #endif
