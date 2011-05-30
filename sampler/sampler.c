@@ -37,9 +37,11 @@ void parse_input(char* input, char* ip /*out*/, unsigned short* port /*out*/){
 void init_destination(){
   char ip[22];
 
+  printf("How many packets should I send? ");
   scanf("%u", &npackets);
 
   memset(ip, 0, 22);
+  printf("Where should I send them [ip:port]? ");
   scanf("%s",ip);
   parse_input(ip, sink_dip, &sink_dport);
 }

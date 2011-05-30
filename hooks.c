@@ -18,6 +18,7 @@
 #include <linux/udp.h>
 #include <linux/kthread.h>
 #include "utilities.h"
+#include "klist.h"
 
 #define __udp_proto_id__ IPPROTO_UDP
 
