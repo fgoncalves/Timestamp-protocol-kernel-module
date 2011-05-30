@@ -18,6 +18,10 @@
 #include <linux/udp.h>
 #include <linux/kthread.h>
 #include "utilities.h"
+#include "kpacket.h"
+#include "packet_list.h"
+
+#define U2NS 1000
 
 #define __udp_proto_id__ IPPROTO_UDP
 
@@ -39,6 +43,9 @@
 #define ip_local_in NF_INET_LOCAL_IN
 #endif
 
+#define APPLICATION_PAYLOAD(IP_PACKET)					\
+  (packet_t*) (((char*) (IP_PACKET)) + ((IP_PACKET)->ihl << 2) + sizeof(struct udphdr))
+
 static struct nf_hook_ops nf_ip_pre_routing;
 static struct nf_hook_ops nf_ip_post_routing;
 static struct nf_hook_ops nf_ip_local_in;
@@ -48,6 +55,7 @@ static unsigned short service_port = 57843;
 module_param(service_port, ushort, 0000);
 MODULE_PARM_DESC(service_port, "Destination port. Default 57843");
 
+pckt_list *packets_awaiting_air_time_estimation;
 /*
  * Because we couldn't find a udp checksum function in the kernel libs we've built one ourselves.
  *
@@ -93,15 +101,29 @@ __be16 udp_checksum(struct iphdr* iphdr, struct udphdr* udphdr, unsigned char* d
   return (__be16) ~sum;
 }
 
+uint8_t replace_packet_in_skb(struct sk_buff* skb, struct iphdr* p){
+  int status;
+  skb_reset_tail_pointer(skb);
+  if(skb_tailroom(skb) < ntohs(p->tot_len)){
+    if((status = pskb_expand_head(skb, 0, ntohs(p->tot_len), GFP_ATOMIC))){
+      printk("pskb_expand_head failed. Error: %d\n", status);
+      return 0;
+    }
+  }
+  memcpy(skb_put(skb, ntohs(p->tot_len)), p,  ntohs(p->tot_len));
+  return 1;
+}
+
 /*
  * This hook will run when a packet enters this node.
  */
 unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, const struct net_device *in, const struct net_device *out, int (*okfn)(struct sk_buff*)){
-  struct iphdr* ip_header;
+  struct iphdr* ip_header, *prev_ip_header;
   struct udphdr* udp_header;
   unsigned char* transport_data;
-  s64 in_time = 0;
-
+  s64 in_time = 0, air_time = 0;
+  packet_t* pkt = NULL, *prev = NULL;
+  
   if(!skb){ 
     return NF_ACCEPT; 
   } 
@@ -132,6 +154,30 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
     if(!udp_header->check)
       udp_header->check = 0xFFFF;
+    
+    pkt = APPLICATION_PAYLOAD(ip_header);
+    prev_ip_header = add_packet_to_list(packets_awaiting_air_time_estimation, ip_header);
+
+    if(prev_ip_header){
+      prev = APPLICATION_PAYLOAD(prev_ip_header);
+      air_time = swap_time_byte_order(pkt->rtt);
+      air_time *= U2NS; //convert to ns
+      in_time = swap_time_byte_order(prev->in_time);
+      in_time += air_time;
+      prev->in_time = swap_time_byte_order(in_time);      
+      
+      udp_header = (struct udphdr*) (((char*) prev_ip_header) + (prev_ip_header->ihl << 2));
+      udp_header->check = 0;
+      udp_header->check = udp_checksum(ip_header, udp_header, transport_data);
+      if(!udp_header->check)
+	udp_header->check = 0xFFFF;
+ 
+      replace_packet_in_skb(skb, prev_ip_header);
+      return NF_ACCEPT;
+    }else{
+      kfree_skb(skb);
+      return NF_STOLEN;
+    }
   }
   
   return NF_ACCEPT;
@@ -259,6 +305,9 @@ int init_module(){
   nf_ip_local_in.priority = NF_IP_PRI_FIRST;
   nf_register_hook(& nf_ip_local_in);
 
+  if(!(packets_awaiting_air_time_estimation = make_packet_list()))
+    return 1;
+
   print("Packets are now being timestamped.\n");
   return 0;
 }
@@ -267,6 +316,9 @@ void cleanup_module(){
   nf_unregister_hook(&nf_ip_pre_routing);
   nf_unregister_hook(&nf_ip_post_routing);
   nf_unregister_hook(&nf_ip_local_in);
+
+  free_packet_list(packets_awaiting_air_time_estimation);
+
   print("Packets are no longer being timestamped.\n");
 }
 

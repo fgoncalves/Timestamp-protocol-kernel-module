@@ -1,9 +1,9 @@
-CFLAGS = -Wall -DDEBUG -lrt
+CFLAGS = -Wall -DDEBUG
 CC = gcc
 OUT = sampler
 
 all: timestamp.o packet.o statistics.o sampler.o
-	$(CC) -o $(OUT) $(CFLAGS) statistics.o packet.o timestamp.o sampler.o
+	$(CC) -o $(OUT) -lrt $(CFLAGS) statistics.o packet.o timestamp.o sampler.o
 
 timestamp.o: timestamp.h timestamp.c
 	$(CC) $(CFLAGS) -c timestamp.c
