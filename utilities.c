@@ -2,12 +2,18 @@
 #include <linux/module.h>
 #include "utilities.h"
 
+#define  SECS_2_NSECS 1000000000L
+#define  USECS_2_NSECS 1000L
+
+
 /*
  * Obtain a 64 bit value representing the nanoseconds since the Epoch.
  */
-s64 get_kernel_current_time(void){
-  struct timespec t = CURRENT_TIME;
-  return timespec_to_ns(&t);
+s64 get_us_kernel_current_time_in_ns(void){
+  struct timeval t;
+  memset(&t, 0, sizeof(struct timeval));
+  do_gettimeofday(&t);
+  return ((int64_t) t.tv_sec) * SECS_2_NSECS + ((int64_t) t.tv_usec) * USECS_2_NSECS;
 }
 
 /*

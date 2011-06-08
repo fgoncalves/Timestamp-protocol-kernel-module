@@ -132,19 +132,25 @@ static struct iphdr* add_packet_to_list(klist* kl, struct iphdr* new){
   struct iphdr *n;
   klist_node* i;
   char* data;
-  debug("Adding packet to list.\n");
+  printk("Adding packet to list.\n");
   while(klist_iterator_has_next(it)){
     i = klist_iterator_next(it);
     n = (struct iphdr*) i->data;
     if(n->saddr == new->saddr){
-      debug("I've found a previous packet!!\n");
-      i->data = new;
+      printk("I've found a previous packet!!\n");
+      data = kmalloc(ntohs(new->tot_len), GFP_ATOMIC);
+      if(!data){
+	printk("%s in %s:%u: kmalloc failed. Unable to add packet to list.\n", __FUNCTION__, __FILE__, __LINE__);
+	return NULL;
+      }
+      memcpy(data, new, ntohs(new->tot_len));
+      i->data = data;
       free_klist_iterator(it);
       return n;
     }
   }
   free_klist_iterator(it);
-  debug("I could not find a pevious packet. I'm going to add this one");
+  printk("I could not find a pevious packet. I'm going to add this one");
   data = kmalloc(ntohs(new->tot_len), GFP_ATOMIC);
   if(!data){
     printk("%s in %s:%u: kmalloc failed. Unable to add packet to list.\n", __FUNCTION__, __FILE__, __LINE__);
@@ -153,7 +159,7 @@ static struct iphdr* add_packet_to_list(klist* kl, struct iphdr* new){
   memcpy(data, new, ntohs(new->tot_len));
 
   add_klist_node_to_klist(kl, make_klist_node(data));
-  debug("OK, I've added the packet.\n");
+  printk("OK, I've added the packet.\n");
   return NULL;
 }
 
@@ -184,7 +190,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
 
   // We're only interested in packets that have our service port as source port.
   if((udp_header->dest) == (unsigned short) htons(service_port)){ 
-    in_time = get_kernel_current_time();
+    in_time = get_us_kernel_current_time_in_ns();
 
     in_time = swap_time_byte_order(in_time);
 
@@ -201,10 +207,11 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
     prev_ip_header = add_packet_to_list(packets_awaiting_air_time_estimation, ip_header);
 
     if(prev_ip_header){
-      debug("This is great, add_packet_to_list found a previous packet.\n");
+      printk("This is great, add_packet_to_list found a previous packet.\n");
       prev = APPLICATION_PAYLOAD(prev_ip_header);
       air_time = swap_time_byte_order(pkt->rtt);
       air_time *= U2NS; //convert to ns
+      printk("Air time (This better be zero): %lld\n", air_time);
       in_time = swap_time_byte_order(prev->in_time);
       in_time += air_time;
       prev->in_time = swap_time_byte_order(in_time);      
@@ -217,7 +224,7 @@ unsigned int nf_ip_pre_routing_hook(unsigned int hooknum, struct sk_buff *skb, c
       replace_packet_in_skb(skb, prev_ip_header);
       return NF_ACCEPT;
     }else{
-      debug("add_packet_to_list did not find a previous packet. I'm stealing this socket buffer.\n");
+      printk("add_packet_to_list did not find a previous packet. I'm stealing this socket buffer.\n");
       kfree_skb(skb);
       return NF_STOLEN;
     }
@@ -259,7 +266,7 @@ unsigned int nf_ip_post_routing_hook(unsigned int hooknum, struct sk_buff *skb, 
     in_time = swap_time_byte_order(in_time);
 
     //from this point on acc_time will contain the total accumulated time
-    kt = get_kernel_current_time();
+    kt = get_us_kernel_current_time_in_ns();
     acc_time += (kt - in_time);
 
     /*I really need to check this crap!!!!*/

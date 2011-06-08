@@ -13,7 +13,7 @@
 
 #define null NULL
 
-extern s64 get_kernel_current_time(void);
+extern s64 get_us_kernel_current_time_in_ns(void);
 extern s64 swap_time_byte_order(s64 time);
 
 #ifdef DEBUG
