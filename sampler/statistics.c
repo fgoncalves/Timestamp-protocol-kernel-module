@@ -21,10 +21,10 @@ void init_statistics(){
     exit(-1);
   }
 
-  fprintf(file_fd,"# Timestamp\t\t\tDelay\t\t\tPacket ID\t\t\tSource\t\t\tData Value\n");
+  fprintf(file_fd,"# Timestamp\t\t\tDelay\t\t\tAir Time\t\t\tPacket ID\t\t\tSource\t\t\tData Value\t\t\tRetries\t\t\tFails\n");
 }
 
-void write_data(s64 tstamp, s64 delay, unsigned int id, char* source, unsigned char* collected_data){
+void write_data(s64 tstamp, s64 delay, s64 air_time, unsigned int id, char* source, unsigned char* collected_data, uint8_t retries, uint8_t fails){
   struct timespec ts = ns_to_timespec(tstamp);
   struct tm* info;
   char buffer[80];
@@ -36,7 +36,7 @@ void write_data(s64 tstamp, s64 delay, unsigned int id, char* source, unsigned c
   milli_seconds = (unsigned long long) ts.tv_nsec / (unsigned long long) 1E6;
   memcpy(&collected_data_in_integer_format, &collected_data, 3);
   // fprintf(file_fd,"%s:%lld\t\t\t%lld\t\t\t%u\t\t\t%s\t\t%d\n",buffer,milli_seconds, delay, id, source, collected_data_in_integer_format);
-  fprintf(file_fd,"%lld\t\t\t%lld\t\t\t%u\t\t\t%s\t\t%d\n",tstamp,delay, id, source, collected_data_in_integer_format);
+  fprintf(file_fd,"%lld\t\t\t%lld\t\t\t%lld\t\t\t%u\t\t\t%s\t\t%d\t\t\t%d\t\t\t%d\n",tstamp,delay, air_time, id, source, collected_data_in_integer_format, retries, fails);
 }
 
 void close_statistics(){

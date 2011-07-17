@@ -64,7 +64,7 @@ void serve(int server_fd){
 
       memset(source_ip_port,0, 22);
       sprintf(source_ip_port, "%s:%hu", inet_ntoa(client.sin_addr), ntohs(client.sin_port));
-      write_data(pk.accumulated_time, pk.in_time, pk.id, source_ip_port, pk.samples);
+      write_data(pk.accumulated_time, pk.in_time, pk.rtt, pk.id, source_ip_port, pk.samples, pk.retries, pk.fails);
     }
     else{
       log(E, "##Fatal error: recvfrom returned without any packet arrival\n");
@@ -87,7 +87,7 @@ void collect(socket_fd client_socket){
     memset(&anything, 0, sizeof(anything));
     init_packet(&anything);
 
-    write_data(anything.accumulated_time, anything.in_time, anything.id, "me", anything.samples);
+    write_data(anything.accumulated_time, anything.in_time, anything.rtt, anything.id, "me", anything.samples, anything.retries, anything.fails);
     
     swap_packet_byte_order(&anything);
 
