@@ -1,4 +1,4 @@
-CFLAGS = -Wall -DDEBUG 
+CFLAGS = -Wall -DDEBUG -DBASH
 CC = gcc
 OUT = sampler
 

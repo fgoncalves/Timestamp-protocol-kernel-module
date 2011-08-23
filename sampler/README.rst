@@ -6,45 +6,19 @@ Also, timestamps will only be correct if the timestamping module is inserted in 
 
 How to run it
 =============
-* If you want the node to act as a sink node just run it like this:
 
-./sampler <ip-address> -s
+Synopsis:
 
-* If you want the node to act as a collecting node just run it like this:
+Usage: ./sampler -i <interface> [-r samples_per_second | -sp sink_port | -p port | -e] [-s] [-gps] [-in]
 
-./sampler <ip-address>
-  
-|   Then you need to enter the number of packets to collect and the sink ip and port. For example:
-|
-|   ./sampler 127.0.0.1
-|
-|   1000
-|
-|   127.0.0.1:6666
-|
-|   This would send 1000 packets to the sink at 127.0.0.1:6666
-
-Notice that there is no need to specify the port when the program is run. It will automatically bind to 57843.
-
-Also, there is no need to enter "END" at the end of input.
-
-
-New Features
-===========
-Now we can specify if we want to emulate the timestamp or not. Add -e flag if you want to emulate the timestamp.
-
-Note that the sink node flag has changed from -sink to -s.
-
-The output file will only be created at the sink node and it will always have the name ostatistics.data
-
-Options
-=======
-
-[any number] - change the sampling rate to the given number. Default is 25 samples per second.
-
--e - Emulate timestamp.
-
--s - Make node act as a sink node
+-i - Interface to bind the program
+-r - Sample rate. Default is 25.
+-sp - Sink port. Default is 57843. If you change this you also must change it in the timesamp.ko
+-p - Port to bind. Default is 57843.
+-e - Instead of getting time from OS, emulate it.
+-s - This node will act as a sink.
+-gps - Gather time from gps. This option does not disable the timestamping protocol.
+-in - Indoor gps. Default is outdoor.
 
 Example
 =======
@@ -52,16 +26,20 @@ Suppose we want to send 100 packets to the sink node.
 
 First we need to start the sink node:
 
-./sampler 192.168.0.1 -s
+./sampler -i eth0 -s
 
 Then we need to start the collector node:
 
-| ./sampler 192.168.0.1
+| ./sampler -i eth0
 | 100
 | 192.168.0.1:57843
 
-Makefile
-========
-The Makefile has changed a little bit. Now the program will only display errors if we compile it with -DDEBUG.
+The same example but with gps enabled.
 
-The Makefile has already this option, but if you don't need this behaviour you can changed it by editing CFLAGS and removing the -DDEBUG. If this is done, the generated code will not contain any assembly related to error messages, which reduces the program size.
+./sampler -i eth0 -s
+
+Then we need to start the collector node:
+
+| ./sampler -i eth0 -gps
+| 100
+| 192.168.0.1:57843
