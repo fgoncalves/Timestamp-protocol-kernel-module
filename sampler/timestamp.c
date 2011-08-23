@@ -1,6 +1,7 @@
 #include "timestamp.h"
 
 #define nsec_per_sec    1000000000L
+#define nsec_per_usec   1000L
 
 static long div_ulong_rem(s64 dividend, int divisor, int *remainder){
   *remainder = dividend % divisor;
@@ -22,4 +23,8 @@ struct timespec ns_to_timespec(s64 nsec){
 
 s64 timespec_to_ns(const struct timespec ts){
   return ((s64) ts.tv_sec * (s64) nsec_per_sec) + (s64) ts.tv_nsec;
+}
+
+s64 timeval_to_ns(const struct timeval tv){
+  return ((s64) tv.tv_sec * (s64) nsec_per_sec) + ((s64) tv.tv_usec * (s64) nsec_per_usec);
 }

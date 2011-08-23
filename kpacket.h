@@ -4,6 +4,7 @@ typedef struct kspacket{
   s64 accumulated_time;
   s64 in_time;
   s64 rtt;
+  s64 gps_time;
   uint32_t id;
   uint8_t fails;
   uint8_t retries;
