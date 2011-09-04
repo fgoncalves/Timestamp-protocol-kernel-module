@@ -52,7 +52,7 @@ void uart_init( char indoor, FILE *status_output) {
 	pthread_create( &read_thread, NULL, uart_read_thread, NULL);
 
 	// give some time to consume all the messages, which will be ignored, before initializing GPS module
-	sleep( 1);
+	sleep( 2);
 	init_gps( indoor, uart_write, status_output);
 }
 
@@ -64,8 +64,8 @@ void uart_write( char *msg, int msg_len) {
 		fprintf( error_f, "gps_uartctl.c: Error while writing to GPS device. Only wrote %d of %d B\n", written_b, msg_len);
 		exit(1);
 	}
-	else
-		fprintf( error_f, "Sent %dB to GPS.\n", written_b);
+	//else
+	//	fprintf( error_f, "Sent %dB to GPS.\n", written_b);
 }
 
 /* Creates a new thread responsible for reading data from the

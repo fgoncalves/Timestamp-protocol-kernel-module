@@ -18,6 +18,7 @@
 #include "statistics.h"
 #include "macros.h"
 #include "gps_time.h"
+#include "gps_uartctl.h"
 
 #define GPS_OUTPUT_FILE "__gps_debug.log"
 
@@ -25,8 +26,6 @@
 /*global*/ unsigned short sink_dport = 0;
 /*global*/ char sink_dip[16] = {0};
 
-pthread_mutex_t gps_lock;
-FILE* output;
 char* iface;
 
 typedef int socket_fd;
@@ -37,13 +36,6 @@ void parse_input(char* input, char* ip /*out*/, unsigned short* port /*out*/){
   strncpy(ip, token, 16);
   token = strtok(null,": \n");
   *port = (unsigned short) atoi(token);
-}
-
-void gps_callback(char* msg, int len){
-  int i;
-  printf("Received: ");
-  for(i = 0; i < len; printf("%02X ", msg[i]), i++);
-  printf("\n");
 }
 
 void init_destination(){
@@ -120,10 +112,6 @@ void collect(socket_fd client_socket){
 void cleanup(){
   printf("\n\nSimulation has ended.\nStatistics file is %s\n", get_statistics_file());
   close_statistics();
-  if(gather_gps_time){
-    pthread_mutex_destroy(&gps_lock);
-    fclose(output);
-  }
   exit(0);
 }
 
@@ -222,15 +210,10 @@ int main(int argc, char** argv){
     printf("Acting as sink.\n");
 
   if(gather_gps_time){    
-    output = fopen(GPS_OUTPUT_FILE, "w");
-    if(!output){
-      log(F, "Failed to open gps debug file.");
-      return 1;
-    }
-    pthread_mutex_init(&gps_lock, NULL);
-    pthread_mutex_lock(&gps_lock);
-    init_gps(indoor, gps_callback, output);
-    pthread_mutex_lock(&gps_lock);
+    uart_init(indoor, stderr);
+    debug(I, "Initializing gps.\n");
+    while(!is_gps_ready()) sleep(1);
+    debug(I, "GPS initialized.\n");
   }
 
   my_sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);

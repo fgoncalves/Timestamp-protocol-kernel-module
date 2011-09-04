@@ -1,3 +1,6 @@
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>
@@ -7,6 +10,8 @@
 #include "timestamp.h"
 #include "gps_time.h"
 #include "macros.h"
+
+#define SYSCALL_NUM 356
 
 unsigned int samples_per_second = 25;
 unsigned char emulate_ts = false;
@@ -37,8 +42,9 @@ void swap_packet_byte_order(packet_t* packet){
 
 void init_packet(packet_t* packet){
   static unsigned int id = 0;
-  static s64 time = 0;
+  static s64 time = 0, t0;
   struct timespec ts;
+  static int first = 1;
   s64 creation_timestamp;
 
   packet->rtt = 0;
@@ -62,11 +68,24 @@ void init_packet(packet_t* packet){
   }
   id++;
 
-  if(gather_gps_time){
+  if(gather_gps_time && first){
     struct timeval tv;
+    s64 gps_offset;
     memset(&tv, 0, sizeof(struct timeval));    
-    getgpstimeofday(&tv, NULL);
+    gps_offset = syscall(SYSCALL_NUM);
+    getGPStimeUTC(&tv);
+    tv.tv_usec = 0;
     time = timeval_to_ns(tv);
-    memcpy(& (packet->gps_time), & time, sizeof(s64));
-  }
+    debug(I, "GPS time is %lld ns\n", time);
+    debug(I, "João tells me that microseconds should be %lld us\n", gps_offset);
+    t0 = time - (gps_offset * 1000);
+    debug(I, "T0 becomes %lld - %lld = %lld ns\n", time, gps_offset * 1000, t0);
+    memcpy(& (packet->gps_time), & t0, sizeof(s64));
+    first = 0;
+  }else
+    if(gather_gps_time){
+      s64 gps_t = t0 + syscall(SYSCALL_NUM) * 1000;
+      debug(I, "GPS time %lld ns", gps_t);
+      memcpy(& (packet->gps_time), & gps_t, sizeof(s64));
+    }
 }
