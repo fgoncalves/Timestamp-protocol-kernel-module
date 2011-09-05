@@ -78,8 +78,8 @@ void init_packet(packet_t* packet){
     time = timeval_to_ns(tv);
     debug(I, "GPS time is %lld ns\n", time);
     debug(I, "João tells me that microseconds should be %lld us\n", gps_offset);
-    t0 = time - (gps_offset * 1000);
-    debug(I, "T0 becomes %lld - %lld = %lld ns\n", time, gps_offset * 1000, t0);
+    t0 = time + (gps_offset - (gps_offset / 1000000 * 1000000)) * 1000;
+    debug(I, "T0 becomes %lld - %lld = %lld ns\n", time, (gps_offset - (gps_offset / 1000000 * 1000000)) * 1000, t0);
     memcpy(& (packet->gps_time), & t0, sizeof(s64));
     first = 0;
   }else
